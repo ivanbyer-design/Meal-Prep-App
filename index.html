@@ -516,6 +516,17 @@
 
   .item-remove:hover { color: var(--red); background: var(--red-light); }
 
+  .item-to-grocery {
+    background: none; border: none;
+    color: var(--text-soft); cursor: pointer;
+    font-size: 0.82rem; padding: 2px 6px;
+    border-radius: 6px; transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .item-to-grocery:hover { color: var(--accent); background: var(--accent-light); }
+  .item-to-grocery.added { color: var(--green); }
+
   .empty-state { text-align: center; padding: 40px 20px; color: var(--text-soft); }
   .empty-state .icon { font-size: 2.5rem; margin-bottom: 10px; }
   .empty-state p { font-size: 0.9rem; }
@@ -1235,6 +1246,7 @@
                   <svg viewBox="0 0 16 16"><polyline points="3,8 7,12 13,4"/></svg>
                 </div>
                 <span class="item-text">${esc(item)}</span>
+                <button class="item-to-grocery ${extraGroceries.includes(item) ? 'added' : ''}" onclick="addHouseToGrocery('${esc(item)}')" title="${extraGroceries.includes(item) ? 'Already on grocery list' : 'Add to grocery list'}">🛒</button>
                 <button class="item-remove" onclick="removeHouseItem('${esc(cat)}',${i})">✕</button>
               </div>`;
           }).join('') : `<div style="padding:8px 0;color:var(--text-soft);font-size:0.85rem;">No items yet</div>`}
@@ -1249,6 +1261,17 @@
   }
 
   function toggleHouse(key) { houseChecked[key] = !houseChecked[key]; renderHouseList(); scheduleSave(); }
+
+  function addHouseToGrocery(itemName) {
+    if (extraGroceries.includes(itemName)) {
+      showToast(`"${itemName}" is already on the grocery list`);
+      return;
+    }
+    extraGroceries.push(itemName);
+    renderHouseList();
+    scheduleSave();
+    showToast(`"${itemName}" added to grocery list`);
+  }
 
   function removeHouseItem(cat, i) {
     houseItems[cat].splice(i, 1);
