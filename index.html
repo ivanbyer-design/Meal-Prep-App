@@ -307,6 +307,8 @@
   }
 
   .add-meal-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+  .load-saved-btn { flex: 1; padding: 12px; border: 2px solid var(--blue); border-radius: var(--radius-sm); background: transparent; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--blue); cursor: pointer; transition: all 0.25s; }
+  .load-saved-btn:hover { background: var(--blue-light); }
 
   .load-icon-btn {
     background: none;
@@ -1085,6 +1087,7 @@
             `).join('')}
             <div class="meal-actions-row">
               <button class="add-meal-btn" onclick="addMeal('${type.key}')">+ Add New</button>
+              ${hasMatchingSaved ? `<button class="load-saved-btn" onclick="openLoadModal('${type.key}')">📌 Load Saved</button>` : ''}
             </div>
           </div>
         </div>`;
@@ -1445,14 +1448,13 @@
   function loadSavedMeal(savedIdx) {
     const saved = savedMeals[savedIdx];
     const catKey = loadTargetCatKey;
-    // Add as a new meal in that category
-    mealsByCategory[catKey].push({
-      name: saved.name,
-      ingredients: [...saved.ingredients]
-    });
-    // Remove empty placeholder if it's the only one
-    if (mealsByCategory[catKey].length > 1 && mealsByCategory[catKey][0].name === '' && mealsByCategory[catKey][0].ingredients.every(i => !i.trim())) {
-      mealsByCategory[catKey].splice(0, 1);
+    const slots = mealsByCategory[catKey];
+    // Fill the last empty slot if one exists, otherwise add a new entry
+    const emptyIdx = slots.map((m, i) => i).reverse().find(i => !slots[i].name.trim() && slots[i].ingredients.every(ing => !ing.trim()));
+    if (emptyIdx !== undefined) {
+      slots[emptyIdx] = { name: saved.name, ingredients: [...saved.ingredients] };
+    } else {
+      slots.push({ name: saved.name, ingredients: [...saved.ingredients] });
     }
     openCategories[catKey] = true;
     closeModal();
