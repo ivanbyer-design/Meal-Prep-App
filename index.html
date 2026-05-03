@@ -778,6 +778,30 @@
   </div>
 </div>
 
+<!-- SAVE MEAL MODAL -->
+<div class="modal-overlay" id="saveMealModal">
+  <div class="modal">
+    <div class="modal-title">Save Meal</div>
+    <div class="modal-subtitle" id="saveMealSubtitle">Choose a protein category</div>
+    <div style="margin-bottom:14px;">
+      <div class="ingredients-label" style="margin-bottom:6px;">Meal Name</div>
+      <input class="meal-name-input" id="saveMealNameDisplay" style="margin-bottom:0;background:var(--bg);cursor:default;" readonly>
+    </div>
+    <div style="margin-bottom:10px;">
+      <div class="ingredients-label" style="margin-bottom:6px;">Protein Category</div>
+      <select id="saveMeatCatSelect" style="width:100%;border:2px solid var(--border);border-radius:8px;padding:10px 12px;font-family:'DM Sans',sans-serif;font-size:0.88rem;color:var(--text);background:var(--card);outline:none;cursor:pointer;transition:border-color 0.2s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></select>
+    </div>
+    <div class="new-cat-row" id="saveNewCatRow">
+      <input type="text" id="saveNewCatInput" placeholder="New category name..." onkeydown="if(event.key==='Enter')confirmSaveNewMeatCat()">
+      <button onclick="confirmSaveNewMeatCat()">Create</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button onclick="confirmSaveMeal()" style="flex:1;padding:11px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-family:'DM Sans',sans-serif;font-size:0.88rem;font-weight:600;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='var(--accent-hover)'" onmouseout="this.style.background='var(--accent)'">💾 Save Meal</button>
+      <button class="modal-close" onclick="closeSaveModal()" style="flex:1;margin-top:0;">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- LOAD SAVED MEAL MODAL -->
 <div class="modal-overlay" id="loadModal">
   <div class="modal">
@@ -808,7 +832,8 @@
   }
   initDefaults();
 
-  let savedMeals = []; // { name, ingredients: [], category (meal type key) }
+  let savedMeals = []; // { name, ingredients: [], category (meal type key), meatCategory }
+  let meatCategories = ['Chicken', 'Beef', 'Pork', 'Salmon / Fish', 'Vegetarian', 'Other'];
   let extraGroceries = [];
   let groceryChecked = {};
 
@@ -833,6 +858,7 @@
       mealsByCategory,
       openCategories,
       savedMeals,
+      meatCategories,
       extraGroceries,
       groceryChecked,
       houseItems,
@@ -847,6 +873,7 @@
       if (data.mealsByCategory) mealsByCategory = data.mealsByCategory;
       if (data.openCategories) openCategories = data.openCategories;
       if (data.savedMeals) savedMeals = data.savedMeals;
+      if (data.meatCategories) meatCategories = data.meatCategories;
       if (data.extraGroceries) extraGroceries = data.extraGroceries;
       if (data.groceryChecked) groceryChecked = data.groceryChecked;
       if (data.houseItems) houseItems = data.houseItems;
@@ -1035,26 +1062,74 @@
   }
 
   // --- SAVE MEAL ---
+  let _pendingSaveCatKey = null;
+  let _pendingSaveMi = null;
+
   function saveMealFrom(catKey, mi) {
     const meal = mealsByCategory[catKey][mi];
     const name = meal.name.trim();
     const ings = meal.ingredients.filter(i => i.trim());
     if (!name || !ings.length) return;
+    _pendingSaveCatKey = catKey;
+    _pendingSaveMi = mi;
+    document.getElementById('saveMealNameDisplay').value = name;
+    document.getElementById('saveMealSubtitle').textContent = `Choose a protein category for "${name}"`;
+    buildSaveMeatCatSelect();
+    document.getElementById('saveNewCatRow').classList.remove('open');
+    document.getElementById('saveNewCatInput').value = '';
+    document.getElementById('saveMealModal').classList.add('open');
+  }
 
-    // Check for duplicate
+  function buildSaveMeatCatSelect() {
+    const sel = document.getElementById('saveMeatCatSelect');
+    sel.innerHTML = meatCategories.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')
+      + `<option value="__new__">+ New category...</option>`;
+    sel.onchange = function() {
+      document.getElementById('saveNewCatRow').classList.toggle('open', this.value === '__new__');
+    };
+  }
+
+  function confirmSaveNewMeatCat() {
+    const input = document.getElementById('saveNewCatInput');
+    const name = input.value.trim();
+    if (!name) return;
+    if (!meatCategories.includes(name)) meatCategories.push(name);
+    input.value = '';
+    document.getElementById('saveNewCatRow').classList.remove('open');
+    buildSaveMeatCatSelect();
+    document.getElementById('saveMeatCatSelect').value = name;
+    scheduleSave();
+  }
+
+  function confirmSaveMeal() {
+    if (_pendingSaveCatKey === null) return;
+    const catKey = _pendingSaveCatKey;
+    const mi = _pendingSaveMi;
+    const meal = mealsByCategory[catKey][mi];
+    const name = meal.name.trim();
+    const ings = meal.ingredients.filter(i => i.trim());
+    const sel = document.getElementById('saveMeatCatSelect');
+    let meatCat = sel.value;
+    if (meatCat === '__new__') {
+      const newName = document.getElementById('saveNewCatInput').value.trim();
+      if (!newName) { document.getElementById('saveNewCatInput').focus(); return; }
+      meatCat = newName;
+      if (!meatCategories.includes(meatCat)) meatCategories.push(meatCat);
+    }
     if (savedMeals.some(s => s.name.toLowerCase() === name.toLowerCase())) {
       if (!confirm(`"${name}" is already saved. Save again as a new entry?`)) return;
     }
-
-    savedMeals.push({
-      name: name,
-      ingredients: [...ings],
-      category: catKey
-    });
-
+    savedMeals.push({ name, ingredients: [...ings], category: catKey, meatCategory: meatCat });
+    closeSaveModal();
     renderMeals();
     scheduleSave();
-    showToast(`"${name}" saved!`);
+    showToast(`"${name}" saved under ${meatCat}!`);
+  }
+
+  function closeSaveModal() {
+    document.getElementById('saveMealModal').classList.remove('open');
+    _pendingSaveCatKey = null;
+    _pendingSaveMi = null;
   }
 
   function deleteSavedMeal(idx) {
@@ -1073,22 +1148,41 @@
       return;
     }
 
-    container.innerHTML = savedMeals.map((s, i) => {
-      const typeLabel = mealTypes.find(t => t.key === s.category)?.label || s.category;
+    // Group by meatCategory
+    const grouped = {};
+    savedMeals.forEach((s, i) => {
+      const cat = s.meatCategory || 'Other';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push({ ...s, _idx: i });
+    });
+
+    const orderedCats = meatCategories.filter(c => grouped[c]);
+    const extraCats = Object.keys(grouped).filter(c => !meatCategories.includes(c));
+    const allCats = [...orderedCats, ...extraCats];
+
+    container.innerHTML = allCats.map(cat => {
+      const meals = grouped[cat];
       return `
-        <div class="saved-meal-card">
-          <div class="saved-meal-header">
-            <div>
-              <div class="saved-meal-category-tag">${esc(typeLabel)}</div>
-              <div class="saved-meal-name">${esc(s.name)}</div>
-            </div>
-            <div class="saved-meal-actions">
-              <button class="saved-action-btn" onclick="deleteSavedMeal(${i})" title="Delete">✕</button>
-            </div>
-          </div>
-          <div class="saved-ingredients">
-            ${s.ingredients.map(ing => `<span class="saved-ing-tag">${esc(ing)}</span>`).join('')}
-          </div>
+        <div class="house-category">
+          <div class="house-cat-title">${esc(cat)} <span style="font-weight:400">(${meals.length})</span></div>
+          ${meals.map(s => {
+            const typeLabel = mealTypes.find(t => t.key === s.category)?.label || s.category;
+            return `
+              <div class="saved-meal-card">
+                <div class="saved-meal-header">
+                  <div>
+                    <div class="saved-meal-category-tag">${esc(typeLabel)}</div>
+                    <div class="saved-meal-name">${esc(s.name)}</div>
+                  </div>
+                  <div class="saved-meal-actions">
+                    <button class="saved-action-btn" onclick="deleteSavedMeal(${s._idx})" title="Delete">✕</button>
+                  </div>
+                </div>
+                <div class="saved-ingredients">
+                  ${s.ingredients.map(ing => `<span class="saved-ing-tag">${esc(ing)}</span>`).join('')}
+                </div>
+              </div>`;
+          }).join('')}
         </div>`;
     }).join('');
 
@@ -1302,7 +1396,7 @@
   }
 
   function resetWeek() {
-    if (!confirm('Start fresh for a new week? This clears current meals, grocery checks, and house checks. Saved meals are kept.')) return;
+    if (!confirm('Start fresh for a new week? This clears current meals and grocery/house check marks. Your house items and saved meals are kept.')) return;
     mealTypes.forEach(t => {
       mealsByCategory[t.key] = [{ name: '', ingredients: [''] }];
       openCategories[t.key] = t.key === 'breakfast';
@@ -1310,7 +1404,6 @@
     extraGroceries = [];
     groceryChecked = {};
     houseChecked = {};
-    houseItems = JSON.parse(JSON.stringify(defaultHouseItems));
     renderMeals();
     switchTab('meals');
     scheduleSave();
@@ -1356,6 +1449,9 @@
   // Close modal on overlay click
   document.getElementById('loadModal').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
+  });
+  document.getElementById('saveMealModal').addEventListener('click', function(e) {
+    if (e.target === this) closeSaveModal();
   });
 
   // Init — load saved data, then render
