@@ -808,6 +808,44 @@
   </div>
 </div>
 
+<!-- EDIT SAVED MEAL MODAL -->
+<div class="modal-overlay" id="editMealModal">
+  <div class="modal">
+    <div class="modal-title">Edit Meal</div>
+    <div class="modal-subtitle">Update name, ingredients, or category</div>
+
+    <div style="margin-bottom:12px;">
+      <div class="ingredients-label" style="margin-bottom:6px;">Meal Name</div>
+      <input class="meal-name-input" id="editMealName" placeholder="Meal name..." style="margin-bottom:0;">
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <div class="ingredients-label" style="margin-bottom:6px;">Meal Type</div>
+      <select id="editMealType" style="width:100%;border:2px solid var(--border);border-radius:8px;padding:10px 12px;font-family:'DM Sans',sans-serif;font-size:0.88rem;color:var(--text);background:var(--card);outline:none;cursor:pointer;"></select>
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <div class="ingredients-label" style="margin-bottom:6px;">Protein Category</div>
+      <select id="editMeatCat" style="width:100%;border:2px solid var(--border);border-radius:8px;padding:10px 12px;font-family:'DM Sans',sans-serif;font-size:0.88rem;color:var(--text);background:var(--card);outline:none;cursor:pointer;"></select>
+    </div>
+    <div class="new-cat-row" id="editNewCatRow">
+      <input type="text" id="editNewCatInput" placeholder="New category name..." onkeydown="if(event.key==='Enter')confirmEditNewCat()">
+      <button onclick="confirmEditNewCat()">Create</button>
+    </div>
+
+    <div style="margin-bottom:6px;">
+      <div class="ingredients-label" style="margin-bottom:6px;">Ingredients</div>
+      <div id="editIngredientsList"></div>
+      <button class="add-btn" onclick="addEditIngredient()" style="margin-top:4px;">+ ingredient</button>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button onclick="confirmEditMeal()" style="flex:1;padding:11px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-family:'DM Sans',sans-serif;font-size:0.88rem;font-weight:600;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='var(--accent-hover)'" onmouseout="this.style.background='var(--accent)'">Save Changes</button>
+      <button class="modal-close" onclick="closeEditModal()" style="flex:1;margin-top:0;">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- LOAD SAVED MEAL MODAL -->
 <div class="modal-overlay" id="loadModal">
   <div class="modal">
@@ -1186,6 +1224,7 @@
                       <div class="saved-meal-name">${esc(s.name)}</div>
                     </div>
                     <div class="saved-meal-actions">
+                      <button class="saved-action-btn" onclick="openEditMealModal(${s._idx})" title="Edit" style="color:var(--blue);">✏️</button>
                       <button class="saved-action-btn" onclick="deleteSavedMeal(${s._idx})" title="Delete">✕</button>
                     </div>
                   </div>
@@ -1221,6 +1260,110 @@
     renderSavedMeals();
     renderMeals();
     scheduleSave();
+  }
+
+  // --- EDIT SAVED MEAL ---
+  let _editIdx = null;
+
+  function openEditMealModal(idx) {
+    _editIdx = idx;
+    const meal = savedMeals[idx];
+
+    document.getElementById('editMealName').value = meal.name;
+
+    // Populate meal type select
+    const typeSelect = document.getElementById('editMealType');
+    typeSelect.innerHTML = mealTypes.map(t => `<option value="${t.key}" ${meal.category === t.key ? 'selected' : ''}>${t.label}</option>`).join('');
+
+    // Populate protein category select
+    buildEditMeatCatSelect(meal.meatCategory || 'Other');
+
+    // Populate ingredients
+    renderEditIngredients(meal.ingredients.length ? [...meal.ingredients] : ['']);
+
+    document.getElementById('editNewCatRow').classList.remove('open');
+    document.getElementById('editNewCatInput').value = '';
+    document.getElementById('editMealModal').classList.add('open');
+  }
+
+  function buildEditMeatCatSelect(selectedCat) {
+    const sel = document.getElementById('editMeatCat');
+    sel.innerHTML = meatCategories.map(c => `<option value="${esc(c)}" ${c === selectedCat ? 'selected' : ''}>${esc(c)}</option>`).join('')
+      + `<option value="__new__">+ New category...</option>`;
+    sel.onchange = function() {
+      document.getElementById('editNewCatRow').classList.toggle('open', this.value === '__new__');
+    };
+  }
+
+  function renderEditIngredients(ings) {
+    document.getElementById('editIngredientsList').innerHTML = ings.map((ing, i) => `
+      <div class="ingredient-row">
+        <input placeholder="e.g. chicken thighs" value="${esc(ing)}" oninput="_editIngs[${i}]=this.value">
+        ${ings.length > 1 ? `<button class="remove-btn" onclick="removeEditIngredient(${i})">✕</button>` : ''}
+      </div>`).join('');
+    _editIngs = [...ings];
+  }
+
+  let _editIngs = [];
+
+  function addEditIngredient() {
+    _editIngs.push('');
+    renderEditIngredients(_editIngs);
+    const inputs = document.querySelectorAll('#editIngredientsList .ingredient-row input');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }
+
+  function removeEditIngredient(i) {
+    _editIngs.splice(i, 1);
+    renderEditIngredients(_editIngs);
+  }
+
+  function confirmEditNewCat() {
+    const input = document.getElementById('editNewCatInput');
+    const name = input.value.trim();
+    if (!name) return;
+    if (!meatCategories.includes(name)) meatCategories.push(name);
+    input.value = '';
+    document.getElementById('editNewCatRow').classList.remove('open');
+    buildEditMeatCatSelect(name);
+    scheduleSave();
+  }
+
+  function confirmEditMeal() {
+    if (_editIdx === null) return;
+    const name = document.getElementById('editMealName').value.trim();
+    if (!name) { document.getElementById('editMealName').focus(); return; }
+
+    const catSel = document.getElementById('editMeatCat');
+    let meatCat = catSel.value;
+    if (meatCat === '__new__') {
+      const newName = document.getElementById('editNewCatInput').value.trim();
+      if (!newName) { document.getElementById('editNewCatInput').focus(); return; }
+      meatCat = newName;
+      if (!meatCategories.includes(meatCat)) meatCategories.push(meatCat);
+    }
+
+    const ings = _editIngs.filter(i => i.trim());
+    if (!ings.length) { showToast('Add at least one ingredient'); return; }
+
+    savedMeals[_editIdx] = {
+      ...savedMeals[_editIdx],
+      name,
+      category: document.getElementById('editMealType').value,
+      meatCategory: meatCat,
+      ingredients: ings,
+    };
+
+    closeEditModal();
+    renderSavedMeals();
+    scheduleSave();
+    showToast(`"${name}" updated`);
+  }
+
+  function closeEditModal() {
+    document.getElementById('editMealModal').classList.remove('open');
+    _editIdx = null;
+    _editIngs = [];
   }
 
   // --- LOAD MODAL ---
@@ -1486,6 +1629,9 @@
   });
   document.getElementById('saveMealModal').addEventListener('click', function(e) {
     if (e.target === this) closeSaveModal();
+  });
+  document.getElementById('editMealModal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditModal();
   });
 
   // Init — load saved data, then render
