@@ -294,7 +294,7 @@
     display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;
   }
 
-  .add-meal-btn, .load-saved-btn {
+  .add-meal-btn {
     flex: 1;
     padding: 12px;
     border: 2px dashed var(--border);
@@ -307,8 +307,24 @@
   }
 
   .add-meal-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
-  .load-saved-btn { border-color: var(--blue); color: var(--blue); border-style: solid; }
-  .load-saved-btn:hover { background: var(--blue-light); }
+
+  .load-icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--blue);
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1.5px solid var(--blue);
+    opacity: 0.65;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .load-icon-btn:hover { opacity: 1; background: var(--blue-light); }
 
   /* SAVED MEALS */
   .saved-meal-card {
@@ -1031,7 +1047,7 @@
       const meals = mealsByCategory[type.key];
       const isOpen = openCategories[type.key];
       const filledCount = meals.filter(m => m.name.trim()).length;
-      const hasSaved = savedMeals.length > 0;
+      const hasMatchingSaved = savedMeals.some(s => s.category === type.key);
 
       return `
         <div class="meal-category">
@@ -1041,7 +1057,10 @@
               <span class="category-name">${type.label}</span>
               <span class="category-count">${filledCount} meal${filledCount !== 1 ? 's' : ''}</span>
             </div>
-            <span class="category-chevron">▼</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              ${hasMatchingSaved ? `<button class="load-icon-btn" onclick="event.stopPropagation();openLoadModal('${type.key}')" title="Load saved ${type.label}">📌 Load</button>` : ''}
+              <span class="category-chevron">▼</span>
+            </div>
           </div>
           <div class="category-body ${isOpen ? 'open' : ''}">
             ${meals.map((meal, mi) => `
@@ -1066,7 +1085,6 @@
             `).join('')}
             <div class="meal-actions-row">
               <button class="add-meal-btn" onclick="addMeal('${type.key}')">+ Add New</button>
-              ${hasSaved ? `<button class="load-saved-btn" onclick="openLoadModal('${type.key}')">📌 Load Saved</button>` : ''}
             </div>
           </div>
         </div>`;
@@ -1392,17 +1410,21 @@
   function openLoadModal(catKey) {
     loadTargetCatKey = catKey;
     const typeLabel = mealTypes.find(t => t.key === catKey)?.label || catKey;
-    document.getElementById('modalTitle').textContent = `Load into ${typeLabel}`;
-    document.getElementById('modalSubtitle').textContent = 'Pick a saved meal to add';
+    document.getElementById('modalTitle').textContent = `Load ${typeLabel} Meal`;
+    document.getElementById('modalSubtitle').textContent = `Saved ${typeLabel.toLowerCase()} meals`;
+
+    const filtered = savedMeals
+      .map((s, i) => ({ ...s, _realIdx: i }))
+      .filter(s => s.category === catKey);
 
     const list = document.getElementById('modalList');
-    if (!savedMeals.length) {
-      list.innerHTML = `<div class="modal-empty">No saved meals yet. Save one first!</div>`;
+    if (!filtered.length) {
+      list.innerHTML = `<div class="modal-empty">No saved ${typeLabel.toLowerCase()} meals yet.<br>Save one from the ${typeLabel} section first.</div>`;
     } else {
-      list.innerHTML = savedMeals.map((s, i) => {
+      list.innerHTML = filtered.map(s => {
         const ings = s.ingredients.slice(0, 4).join(', ') + (s.ingredients.length > 4 ? ` +${s.ingredients.length - 4} more` : '');
         return `
-          <div class="modal-meal-option" onclick="loadSavedMeal(${i})">
+          <div class="modal-meal-option" onclick="loadSavedMeal(${s._realIdx})">
             <div class="modal-meal-option-left">
               <div class="modal-meal-option-name">${esc(s.name)}</div>
               <div class="modal-meal-option-ings">${esc(ings)}</div>
