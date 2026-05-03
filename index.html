@@ -717,9 +717,9 @@
 </header>
 
 <div class="tabs">
-  <button class="tab active" data-tab="meals" onclick="switchTab('meals')">🍳 Meals</button>
+  <button class="tab active" data-tab="meals" onclick="switchTab('meals')">📅 Planner</button>
   <button class="tab" data-tab="saved" onclick="switchTab('saved')">
-    📌 Saved
+    🍽️ Meals
     <span class="badge" id="savedBadge" style="display:none">0</span>
   </button>
   <button class="tab" data-tab="grocery" onclick="switchTab('grocery')">
@@ -734,7 +734,13 @@
 
 <div class="panel active" id="mealsPanel"><div id="mealCategories"></div></div>
 
-<div class="panel" id="savedPanel"><div id="savedMealsList"></div></div>
+<div class="panel" id="savedPanel">
+  <div id="savedMealsList"></div>
+  <div class="add-inline" style="margin-top:10px;">
+    <input type="text" id="addMeatCatInput" placeholder="Add new category (e.g. Turkey, Shrimp)..." onkeydown="if(event.key==='Enter')addMeatCategory()">
+    <button onclick="addMeatCategory()">+ Category</button>
+  </div>
+</div>
 
 <div class="panel" id="groceryPanel">
   <div class="progress-bar-container">
@@ -1143,10 +1149,6 @@
 
   function renderSavedMeals() {
     const container = document.getElementById('savedMealsList');
-    if (!savedMeals.length) {
-      container.innerHTML = `<div class="empty-state"><div class="icon">📌</div><p>No saved meals yet.<br>Save a meal from the Meals tab<br>using the 💾 Save button.</p></div>`;
-      return;
-    }
 
     // Group by meatCategory
     const grouped = {};
@@ -1156,37 +1158,69 @@
       grouped[cat].push({ ...s, _idx: i });
     });
 
-    const orderedCats = meatCategories.filter(c => grouped[c]);
+    // All defined categories first, then any orphaned ones from saved data
     const extraCats = Object.keys(grouped).filter(c => !meatCategories.includes(c));
-    const allCats = [...orderedCats, ...extraCats];
+    const allCats = [...meatCategories, ...extraCats];
+
+    if (!allCats.length) {
+      container.innerHTML = `<div class="empty-state"><div class="icon">🍽️</div><p>No categories yet.<br>Add one below to get started.</p></div>`;
+      return;
+    }
 
     container.innerHTML = allCats.map(cat => {
-      const meals = grouped[cat];
+      const meals = grouped[cat] || [];
       return `
         <div class="house-category">
-          <div class="house-cat-title">${esc(cat)} <span style="font-weight:400">(${meals.length})</span></div>
-          ${meals.map(s => {
-            const typeLabel = mealTypes.find(t => t.key === s.category)?.label || s.category;
-            return `
-              <div class="saved-meal-card">
-                <div class="saved-meal-header">
-                  <div>
-                    <div class="saved-meal-category-tag">${esc(typeLabel)}</div>
-                    <div class="saved-meal-name">${esc(s.name)}</div>
+          <div class="house-cat-title" style="display:flex;align-items:center;justify-content:space-between;">
+            <span>${esc(cat)} <span style="font-weight:400">(${meals.length})</span></span>
+            <button class="item-remove" onclick="deleteMeatCategory('${esc(cat)}')" title="Delete category">✕</button>
+          </div>
+          <div class="grocery-section" style="padding:10px 16px;">
+            ${meals.length ? meals.map(s => {
+              const typeLabel = mealTypes.find(t => t.key === s.category)?.label || s.category;
+              return `
+                <div class="saved-meal-card" style="margin-bottom:10px;">
+                  <div class="saved-meal-header">
+                    <div>
+                      <div class="saved-meal-category-tag">${esc(typeLabel)}</div>
+                      <div class="saved-meal-name">${esc(s.name)}</div>
+                    </div>
+                    <div class="saved-meal-actions">
+                      <button class="saved-action-btn" onclick="deleteSavedMeal(${s._idx})" title="Delete">✕</button>
+                    </div>
                   </div>
-                  <div class="saved-meal-actions">
-                    <button class="saved-action-btn" onclick="deleteSavedMeal(${s._idx})" title="Delete">✕</button>
+                  <div class="saved-ingredients">
+                    ${s.ingredients.map(ing => `<span class="saved-ing-tag">${esc(ing)}</span>`).join('')}
                   </div>
-                </div>
-                <div class="saved-ingredients">
-                  ${s.ingredients.map(ing => `<span class="saved-ing-tag">${esc(ing)}</span>`).join('')}
-                </div>
-              </div>`;
-          }).join('')}
+                </div>`;
+            }).join('') : `<div style="padding:8px 0;color:var(--text-soft);font-size:0.85rem;">No meals saved here yet</div>`}
+          </div>
         </div>`;
     }).join('');
 
     updateBadges();
+  }
+
+  function addMeatCategory() {
+    const input = document.getElementById('addMeatCatInput');
+    const name = input.value.trim();
+    if (!name) return;
+    if (meatCategories.includes(name)) { showToast(`"${name}" already exists`); return; }
+    meatCategories.push(name);
+    input.value = '';
+    renderSavedMeals();
+    scheduleSave();
+    showToast(`"${name}" category added`);
+  }
+
+  function deleteMeatCategory(cat) {
+    const hasMeals = savedMeals.some(s => (s.meatCategory || 'Other') === cat);
+    if (hasMeals && !confirm(`Delete "${cat}" and all its saved meals?`)) return;
+    meatCategories = meatCategories.filter(c => c !== cat);
+    if (hasMeals) savedMeals = savedMeals.filter(s => (s.meatCategory || 'Other') !== cat);
+    renderSavedMeals();
+    renderMeals();
+    scheduleSave();
   }
 
   // --- LOAD MODAL ---
