@@ -1441,17 +1441,31 @@
 
   // --- GROCERY ---
   function getGroceryItems() {
-    const items = [];
+    const map = new Map(); // normalised text → { text, sources }
     mealTypes.forEach(type => {
       mealsByCategory[type.key].forEach(meal => {
         meal.ingredients.forEach(ing => {
           const t = ing.trim();
-          if (t) items.push({ text: t, source: meal.name.trim() || `${type.label} (unnamed)` });
+          if (!t) return;
+          const key = t.toLowerCase();
+          if (!map.has(key)) map.set(key, { text: t, sources: [] });
+          const src = meal.name.trim() || `${type.label} (unnamed)`;
+          if (!map.get(key).sources.includes(src)) map.get(key).sources.push(src);
         });
       });
     });
-    extraGroceries.forEach(g => items.push({ text: g, source: 'Added manually' }));
-    return items;
+    extraGroceries.forEach(g => {
+      const t = g.trim();
+      if (!t) return;
+      const key = t.toLowerCase();
+      if (!map.has(key)) map.set(key, { text: t, sources: [] });
+      if (!map.get(key).sources.includes('Added manually')) map.get(key).sources.push('Added manually');
+    });
+    return Array.from(map.values()).map(item => ({
+      text: item.text,
+      source: item.sources.join(', '),
+      key: `g_${item.text.toLowerCase()}`
+    }));
   }
 
   function renderGroceryList() {
@@ -1465,12 +1479,11 @@
       return;
     }
 
-    container.innerHTML = `<div class="grocery-section">${items.map((item, i) => {
-      const key = `g_${i}_${item.text}`;
-      const checked = groceryChecked[key] || false;
+    container.innerHTML = `<div class="grocery-section">${items.map(item => {
+      const checked = groceryChecked[item.key] || false;
       return `
         <div class="check-item ${checked ? 'checked' : ''}">
-          <div class="checkbox" onclick="toggleGrocery('${esc(key)}')">
+          <div class="checkbox" onclick="toggleGrocery('${esc(item.key)}')">
             <svg viewBox="0 0 16 16"><polyline points="3,8 7,12 13,4"/></svg>
           </div>
           <span class="item-text">${esc(item.text)}</span>
@@ -1478,9 +1491,9 @@
         </div>`;
     }).join('')}</div>`;
 
-    const checked = items.filter((_, i) => groceryChecked[`g_${i}_${items[i].text}`]).length;
-    document.getElementById('groceryProgress').textContent = `${checked} / ${items.length}`;
-    document.getElementById('groceryFill').style.width = items.length ? `${(checked / items.length) * 100}%` : '0%';
+    const checkedCount = items.filter(item => groceryChecked[item.key]).length;
+    document.getElementById('groceryProgress').textContent = `${checkedCount} / ${items.length}`;
+    document.getElementById('groceryFill').style.width = items.length ? `${(checkedCount / items.length) * 100}%` : '0%';
     updateBadges();
   }
 
@@ -1610,7 +1623,7 @@
 
   function updateBadges() {
     const gItems = getGroceryItems();
-    const gCount = gItems.filter((_, i) => !groceryChecked[`g_${i}_${gItems[i].text}`]).length;
+    const gCount = gItems.filter(item => !groceryChecked[item.key]).length;
     const gBadge = document.getElementById('groceryBadge');
     gBadge.style.display = gCount > 0 ? 'flex' : 'none';
     gBadge.textContent = gCount;
