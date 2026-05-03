@@ -1198,7 +1198,9 @@
 
     // All defined categories first, then any orphaned ones from saved data
     const extraCats = Object.keys(grouped).filter(c => !meatCategories.includes(c));
-    const allCats = [...meatCategories, ...extraCats];
+    const allCats = [...meatCategories, ...extraCats].sort((a, b) =>
+      a.toLowerCase() === 'other' ? 1 : b.toLowerCase() === 'other' ? -1 : 0
+    );
 
     if (!allCats.length) {
       container.innerHTML = `<div class="empty-state"><div class="icon">🍽️</div><p>No categories yet.<br>Add one below to get started.</p></div>`;
