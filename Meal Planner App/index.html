@@ -1232,6 +1232,7 @@
 
   // Modal state
   let loadTargetCatKey = null;
+  let themeModalTargetDay = null;
 
   // Week label
   (function() {
@@ -1349,6 +1350,10 @@
   }
 
   function selectDayAndType(d, typeKey) {
+    if (typeKey === 'dinner' && weekTheme) {
+      openThemeMealModal(d);
+      return;
+    }
     selectedDay = d;
     openCategories[typeKey] = true;
     renderThemeSection();
@@ -1540,6 +1545,57 @@
   function closeModal() {
     document.getElementById('loadModal').classList.remove('open');
     loadTargetCatKey = null;
+    themeModalTargetDay = null;
+  }
+
+  // --- THEME MEAL PICKER (for dinner boxes on the week grid) ---
+  function openThemeMealModal(d) {
+    themeModalTargetDay = d;
+    const opt = proteinOptions.find(p => p.key === weekTheme);
+    document.getElementById('modalTitle').textContent = `${opt ? opt.label : 'Theme'} Dinner Ideas`;
+    document.getElementById('modalSubtitle').textContent = `Pick a dinner for ${dayNames[d]}`;
+
+    const ideas = proteinDinnerIdeas[weekTheme] || [];
+    const list = document.getElementById('modalList');
+    if (!ideas.length) {
+      list.innerHTML = `<div class="modal-empty">No ideas for this theme yet.</div>`;
+    } else {
+      list.innerHTML = ideas.map((idea, i) => {
+        const ings = idea.ingredients.slice(0, 4).join(', ') + (idea.ingredients.length > 4 ? ` +${idea.ingredients.length - 4} more` : '');
+        return `
+          <div class="modal-meal-option" onclick="chooseThemeMeal(${i})">
+            <div class="modal-meal-option-left">
+              <div class="modal-meal-option-name">${esc(idea.name)}</div>
+              <div class="modal-meal-option-ings">${esc(ings)}</div>
+            </div>
+            <span style="color:var(--accent);font-size:1.2rem;">→</span>
+          </div>`;
+      }).join('');
+    }
+
+    document.getElementById('loadModal').classList.add('open');
+  }
+
+  function chooseThemeMeal(i) {
+    const ideas = proteinDinnerIdeas[weekTheme] || [];
+    const idea = ideas[i];
+    const targetDay = themeModalTargetDay;
+    if (!idea || !targetDay) { closeModal(); return; }
+
+    const list = mealsByDay[targetDay]['dinner'];
+    list.push({ name: idea.name, ingredients: [...idea.ingredients] });
+    if (list.length > 1 && list[0].name === '' && list[0].ingredients.every(x => !x.trim())) {
+      list.splice(0, 1);
+    }
+
+    selectedDay = targetDay;
+    openCategories['dinner'] = true;
+    closeModal();
+    renderThemeSection();
+    renderWeekGrid();
+    renderMeals();
+    scheduleSave();
+    showToast(`"${idea.name}" added to Dinner for ${dayNames[targetDay]}`);
   }
 
   function loadSavedMeal(savedIdx) {
