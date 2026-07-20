@@ -112,6 +112,86 @@
 
   @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
+  /* DAY STRIP (calendar) */
+  .day-strip-wrap { max-width: 600px; margin: 0 auto; }
+
+  .day-strip {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    padding: 4px 2px 10px;
+    scrollbar-width: none;
+  }
+
+  .day-strip::-webkit-scrollbar { display: none; }
+
+  .day-pill {
+    flex: 0 0 auto;
+    width: 54px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 0 8px;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid var(--border);
+    background: var(--card);
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: var(--shadow);
+  }
+
+  .day-pill:hover { border-color: var(--accent); }
+
+  .day-pill .day-name {
+    font-size: 0.66rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-soft);
+  }
+
+  .day-pill .day-num {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.3rem;
+    color: var(--text);
+  }
+
+  .day-pill .day-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0;
+  }
+
+  .day-pill.today .day-dot { opacity: 1; }
+
+  .day-pill.selected {
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 4px 14px rgba(212, 133, 74, 0.3);
+  }
+
+  .day-pill.selected .day-name,
+  .day-pill.selected .day-num { color: #fff; }
+
+  .day-pill.selected .day-dot { background: #fff; }
+
+  .day-heading { text-align: center; margin-bottom: 18px; }
+
+  .day-heading .day-full {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.3rem;
+    color: var(--text);
+  }
+
+  .day-heading .day-meal-count {
+    font-size: 0.78rem;
+    color: var(--text-soft);
+    margin-top: 2px;
+  }
+
   /* MEAL CATEGORY ACCORDION */
   .meal-category { margin-bottom: 16px; }
 
@@ -294,7 +374,7 @@
     display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;
   }
 
-  .add-meal-btn {
+  .add-meal-btn, .load-saved-btn {
     flex: 1;
     padding: 12px;
     border: 2px dashed var(--border);
@@ -307,26 +387,8 @@
   }
 
   .add-meal-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
-  .load-saved-btn { flex: 1; padding: 12px; border: 2px solid var(--blue); border-radius: var(--radius-sm); background: transparent; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--blue); cursor: pointer; transition: all 0.25s; }
+  .load-saved-btn { border-color: var(--blue); color: var(--blue); border-style: solid; }
   .load-saved-btn:hover { background: var(--blue-light); }
-
-  .load-icon-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 0.78rem;
-    font-weight: 600;
-    font-family: 'DM Sans', sans-serif;
-    color: var(--blue);
-    padding: 3px 8px;
-    border-radius: 6px;
-    border: 1.5px solid var(--blue);
-    opacity: 0.65;
-    transition: all 0.2s;
-    white-space: nowrap;
-  }
-
-  .load-icon-btn:hover { opacity: 1; background: var(--blue-light); }
 
   /* SAVED MEALS */
   .saved-meal-card {
@@ -737,7 +799,7 @@
 <div class="tabs">
   <button class="tab active" data-tab="meals" onclick="switchTab('meals')">📅 Planner</button>
   <button class="tab" data-tab="saved" onclick="switchTab('saved')">
-    🍽️ Meals
+    📌 Saved
     <span class="badge" id="savedBadge" style="display:none">0</span>
   </button>
   <button class="tab" data-tab="grocery" onclick="switchTab('grocery')">
@@ -750,15 +812,16 @@
   </button>
 </div>
 
-<div class="panel active" id="mealsPanel"><div id="mealCategories"></div></div>
-
-<div class="panel" id="savedPanel">
-  <div id="savedMealsList"></div>
-  <div class="add-inline" style="margin-top:10px;">
-    <input type="text" id="addMeatCatInput" placeholder="Add new category (e.g. Turkey, Shrimp)..." onkeydown="if(event.key==='Enter')addMeatCategory()">
-    <button onclick="addMeatCategory()">+ Category</button>
+<div class="panel active" id="mealsPanel">
+  <div class="day-strip-wrap"><div class="day-strip" id="dayStrip"></div></div>
+  <div class="day-heading">
+    <div class="day-full" id="dayFull"></div>
+    <div class="day-meal-count" id="dayMealCount"></div>
   </div>
+  <div id="mealCategories"></div>
 </div>
+
+<div class="panel" id="savedPanel"><div id="savedMealsList"></div></div>
 
 <div class="panel" id="groceryPanel">
   <div class="progress-bar-container">
@@ -802,68 +865,6 @@
   </div>
 </div>
 
-<!-- SAVE MEAL MODAL -->
-<div class="modal-overlay" id="saveMealModal">
-  <div class="modal">
-    <div class="modal-title">Save Meal</div>
-    <div class="modal-subtitle" id="saveMealSubtitle">Choose a protein category</div>
-    <div style="margin-bottom:14px;">
-      <div class="ingredients-label" style="margin-bottom:6px;">Meal Name</div>
-      <input class="meal-name-input" id="saveMealNameDisplay" style="margin-bottom:0;background:var(--bg);cursor:default;" readonly>
-    </div>
-    <div style="margin-bottom:10px;">
-      <div class="ingredients-label" style="margin-bottom:6px;">Protein Category</div>
-      <select id="saveMeatCatSelect" style="width:100%;border:2px solid var(--border);border-radius:8px;padding:10px 12px;font-family:'DM Sans',sans-serif;font-size:0.88rem;color:var(--text);background:var(--card);outline:none;cursor:pointer;transition:border-color 0.2s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></select>
-    </div>
-    <div class="new-cat-row" id="saveNewCatRow">
-      <input type="text" id="saveNewCatInput" placeholder="New category name..." onkeydown="if(event.key==='Enter')confirmSaveNewMeatCat()">
-      <button onclick="confirmSaveNewMeatCat()">Create</button>
-    </div>
-    <div style="display:flex;gap:8px;margin-top:14px;">
-      <button onclick="confirmSaveMeal()" style="flex:1;padding:11px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-family:'DM Sans',sans-serif;font-size:0.88rem;font-weight:600;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='var(--accent-hover)'" onmouseout="this.style.background='var(--accent)'">💾 Save Meal</button>
-      <button class="modal-close" onclick="closeSaveModal()" style="flex:1;margin-top:0;">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- EDIT SAVED MEAL MODAL -->
-<div class="modal-overlay" id="editMealModal">
-  <div class="modal">
-    <div class="modal-title">Edit Meal</div>
-    <div class="modal-subtitle">Update name, ingredients, or category</div>
-
-    <div style="margin-bottom:12px;">
-      <div class="ingredients-label" style="margin-bottom:6px;">Meal Name</div>
-      <input class="meal-name-input" id="editMealName" placeholder="Meal name..." style="margin-bottom:0;">
-    </div>
-
-    <div style="margin-bottom:12px;">
-      <div class="ingredients-label" style="margin-bottom:6px;">Meal Type</div>
-      <select id="editMealType" style="width:100%;border:2px solid var(--border);border-radius:8px;padding:10px 12px;font-family:'DM Sans',sans-serif;font-size:0.88rem;color:var(--text);background:var(--card);outline:none;cursor:pointer;"></select>
-    </div>
-
-    <div style="margin-bottom:12px;">
-      <div class="ingredients-label" style="margin-bottom:6px;">Protein Category</div>
-      <select id="editMeatCat" style="width:100%;border:2px solid var(--border);border-radius:8px;padding:10px 12px;font-family:'DM Sans',sans-serif;font-size:0.88rem;color:var(--text);background:var(--card);outline:none;cursor:pointer;"></select>
-    </div>
-    <div class="new-cat-row" id="editNewCatRow">
-      <input type="text" id="editNewCatInput" placeholder="New category name..." onkeydown="if(event.key==='Enter')confirmEditNewCat()">
-      <button onclick="confirmEditNewCat()">Create</button>
-    </div>
-
-    <div style="margin-bottom:6px;">
-      <div class="ingredients-label" style="margin-bottom:6px;">Ingredients</div>
-      <div id="editIngredientsList"></div>
-      <button class="add-btn" onclick="addEditIngredient()" style="margin-top:4px;">+ ingredient</button>
-    </div>
-
-    <div style="display:flex;gap:8px;margin-top:16px;">
-      <button onclick="confirmEditMeal()" style="flex:1;padding:11px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-family:'DM Sans',sans-serif;font-size:0.88rem;font-weight:600;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='var(--accent-hover)'" onmouseout="this.style.background='var(--accent)'">Save Changes</button>
-      <button class="modal-close" onclick="closeEditModal()" style="flex:1;margin-top:0;">Cancel</button>
-    </div>
-  </div>
-</div>
-
 <!-- LOAD SAVED MEAL MODAL -->
 <div class="modal-overlay" id="loadModal">
   <div class="modal">
@@ -884,18 +885,25 @@
     { key: 'desserts',  label: 'Desserts',  icon: '🍰', placeholder: 'e.g. Banana bread' },
   ];
 
-  let mealsByCategory = {};
+  const dayKeys = ['sun','mon','tue','wed','thu','fri','sat'];
+  const dayNames = { sun:'Sunday', mon:'Monday', tue:'Tuesday', wed:'Wednesday', thu:'Thursday', fri:'Friday', sat:'Saturday' };
+
+  let mealsByDay = {};
   let openCategories = {};
+  let selectedDay = dayKeys[new Date().getDay()];
+  let weekDates = [];
+  let _migrated = false;
+
   function initDefaults() {
-    mealTypes.forEach(t => {
-      mealsByCategory[t.key] = [{ name: '', ingredients: [''] }];
-      openCategories[t.key] = t.key === 'breakfast';
+    dayKeys.forEach(d => {
+      mealsByDay[d] = {};
+      mealTypes.forEach(t => { mealsByDay[d][t.key] = [{ name: '', ingredients: [''] }]; });
     });
+    mealTypes.forEach(t => { openCategories[t.key] = t.key === 'breakfast'; });
   }
   initDefaults();
 
-  let savedMeals = []; // { name, ingredients: [], category (meal type key), meatCategory }
-  let meatCategories = ['Chicken', 'Beef', 'Pork', 'Salmon / Fish', 'Vegetarian', 'Snacks', 'Other'];
+  let savedMeals = []; // { name, ingredients: [], category (meal type key) }
   let extraGroceries = [];
   let groceryChecked = {};
 
@@ -917,10 +925,9 @@
 
   function getStateSnapshot() {
     return {
-      mealsByCategory,
+      mealsByDay,
       openCategories,
       savedMeals,
-      meatCategories,
       extraGroceries,
       groceryChecked,
       houseItems,
@@ -932,10 +939,19 @@
   function applyState(data) {
     if (!data) return false;
     try {
-      if (data.mealsByCategory) mealsByCategory = data.mealsByCategory;
+      if (data.mealsByDay) {
+        mealsByDay = data.mealsByDay;
+      } else if (data.mealsByCategory) {
+        // Migrate from the old day-less format: drop existing meals into today
+        const todayKey = dayKeys[new Date().getDay()];
+        mealTypes.forEach(t => {
+          const meals = (data.mealsByCategory[t.key] || []).filter(m => m.name.trim() || m.ingredients.some(i => i.trim()));
+          if (meals.length) mealsByDay[todayKey][t.key] = meals;
+        });
+        _migrated = true;
+      }
       if (data.openCategories) openCategories = data.openCategories;
       if (data.savedMeals) savedMeals = data.savedMeals;
-      if (data.meatCategories) meatCategories = data.meatCategories;
       if (data.extraGroceries) extraGroceries = data.extraGroceries;
       if (data.groceryChecked) groceryChecked = data.groceryChecked;
       if (data.houseItems) houseItems = data.houseItems;
@@ -1009,9 +1025,10 @@
     }
 
     if (best && applyState(best)) {
-      showToast('Data loaded!');
+      showToast(_migrated ? 'Your meals were moved to today — reassign them to other days as needed' : 'Data loaded!');
     }
 
+    renderDayStrip();
     renderMeals();
     buildCatSelect();
     updateBadges();
@@ -1024,7 +1041,8 @@
   (function() {
     const now = new Date();
     const start = new Date(now); start.setDate(now.getDate() - now.getDay());
-    const end = new Date(start); end.setDate(start.getDate() + 6);
+    weekDates = dayKeys.map((_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
+    const end = weekDates[6];
     const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     document.getElementById('weekLabel').textContent = `Week of ${fmt(start)} – ${fmt(end)}`;
   })();
@@ -1043,13 +1061,49 @@
     renderMeals();
   }
 
+  // --- DAY STRIP (calendar) ---
+  function renderDayStrip() {
+    const todayKey = dayKeys[new Date().getDay()];
+    const strip = document.getElementById('dayStrip');
+    strip.innerHTML = dayKeys.map((d, i) => {
+      const date = weekDates[i];
+      const num = date ? date.getDate() : '';
+      const isToday = d === todayKey;
+      const isSelected = d === selectedDay;
+      return `
+        <div class="day-pill ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}" onclick="selectDay('${d}')">
+          <span class="day-name">${dayNames[d].slice(0,3)}</span>
+          <span class="day-num">${num}</span>
+          <span class="day-dot"></span>
+        </div>`;
+    }).join('');
+
+    const el = strip.querySelector('.day-pill.selected');
+    if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }
+
+  function selectDay(d) {
+    selectedDay = d;
+    renderDayStrip();
+    renderMeals();
+  }
+
   // --- RENDER MEALS ---
   function renderMeals() {
+    const dayMeals = mealsByDay[selectedDay];
+    const date = weekDates[dayKeys.indexOf(selectedDay)];
+    document.getElementById('dayFull').textContent = date
+      ? `${dayNames[selectedDay]}, ${date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}`
+      : dayNames[selectedDay];
+
+    let totalFilled = 0;
+
     document.getElementById('mealCategories').innerHTML = mealTypes.map(type => {
-      const meals = mealsByCategory[type.key];
+      const meals = dayMeals[type.key];
       const isOpen = openCategories[type.key];
       const filledCount = meals.filter(m => m.name.trim()).length;
-      const hasMatchingSaved = savedMeals.some(s => s.category === type.key);
+      totalFilled += filledCount;
+      const hasSaved = savedMeals.length > 0;
 
       return `
         <div class="meal-category">
@@ -1059,10 +1113,7 @@
               <span class="category-name">${type.label}</span>
               <span class="category-count">${filledCount} meal${filledCount !== 1 ? 's' : ''}</span>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;">
-              ${hasMatchingSaved ? `<button class="load-icon-btn" onclick="event.stopPropagation();openLoadModal('${type.key}')" title="Load saved ${type.label}">📌 Load</button>` : ''}
-              <span class="category-chevron">▼</span>
-            </div>
+            <span class="category-chevron">▼</span>
           </div>
           <div class="category-body ${isOpen ? 'open' : ''}">
             ${meals.map((meal, mi) => `
@@ -1074,11 +1125,11 @@
                     ${meals.length > 1 ? `<button class="remove-meal" onclick="event.stopPropagation();removeMeal('${type.key}',${mi})">✕</button>` : ''}
                   </div>
                 </div>
-                <input class="meal-name-input" placeholder="${type.placeholder}" value="${esc(meal.name)}" oninput="mealsByCategory['${type.key}'][${mi}].name=this.value;scheduleSave()" onblur="renderMeals()" />
+                <input class="meal-name-input" placeholder="${type.placeholder}" value="${esc(meal.name)}" oninput="mealsByDay['${selectedDay}']['${type.key}'][${mi}].name=this.value;scheduleSave()" onblur="renderMeals()" />
                 <div class="ingredients-label">Ingredients</div>
                 ${meal.ingredients.map((ing, ii) => `
                   <div class="ingredient-row">
-                    <input placeholder="e.g. chicken thighs" value="${esc(ing)}" oninput="mealsByCategory['${type.key}'][${mi}].ingredients[${ii}]=this.value;scheduleSave()" />
+                    <input placeholder="e.g. chicken thighs" value="${esc(ing)}" oninput="mealsByDay['${selectedDay}']['${type.key}'][${mi}].ingredients[${ii}]=this.value;scheduleSave()" />
                     ${meal.ingredients.length > 1 ? `<button class="remove-btn" onclick="removeIngredient('${type.key}',${mi},${ii})">✕</button>` : ''}
                   </div>
                 `).join('')}
@@ -1087,31 +1138,33 @@
             `).join('')}
             <div class="meal-actions-row">
               <button class="add-meal-btn" onclick="addMeal('${type.key}')">+ Add New</button>
-              ${hasMatchingSaved ? `<button class="load-saved-btn" onclick="openLoadModal('${type.key}')">📌 Load Saved</button>` : ''}
+              ${hasSaved ? `<button class="load-saved-btn" onclick="openLoadModal('${type.key}')">📌 Load Saved</button>` : ''}
             </div>
           </div>
         </div>`;
     }).join('');
+
+    document.getElementById('dayMealCount').textContent = `${totalFilled} meal${totalFilled !== 1 ? 's' : ''} planned`;
     updateBadges();
   }
 
   // (render on blur instead of during typing to preserve focus)
 
   function addMeal(catKey) {
-    mealsByCategory[catKey].push({ name: '', ingredients: [''] });
+    mealsByDay[selectedDay][catKey].push({ name: '', ingredients: [''] });
     renderMeals();
     scheduleSave();
   }
 
   function removeMeal(catKey, mi) {
-    mealsByCategory[catKey].splice(mi, 1);
-    if (!mealsByCategory[catKey].length) mealsByCategory[catKey] = [{ name: '', ingredients: [''] }];
+    mealsByDay[selectedDay][catKey].splice(mi, 1);
+    if (!mealsByDay[selectedDay][catKey].length) mealsByDay[selectedDay][catKey] = [{ name: '', ingredients: [''] }];
     renderMeals();
     scheduleSave();
   }
 
   function addIngredient(catKey, mi) {
-    mealsByCategory[catKey][mi].ingredients.push('');
+    mealsByDay[selectedDay][catKey][mi].ingredients.push('');
     renderMeals();
     const cats = document.querySelectorAll('.meal-category');
     const idx = mealTypes.findIndex(t => t.key === catKey);
@@ -1121,80 +1174,32 @@
   }
 
   function removeIngredient(catKey, mi, ii) {
-    mealsByCategory[catKey][mi].ingredients.splice(ii, 1);
+    mealsByDay[selectedDay][catKey][mi].ingredients.splice(ii, 1);
     renderMeals();
     scheduleSave();
   }
 
   // --- SAVE MEAL ---
-  let _pendingSaveCatKey = null;
-  let _pendingSaveMi = null;
-
   function saveMealFrom(catKey, mi) {
-    const meal = mealsByCategory[catKey][mi];
+    const meal = mealsByDay[selectedDay][catKey][mi];
     const name = meal.name.trim();
     const ings = meal.ingredients.filter(i => i.trim());
     if (!name || !ings.length) return;
-    _pendingSaveCatKey = catKey;
-    _pendingSaveMi = mi;
-    document.getElementById('saveMealNameDisplay').value = name;
-    document.getElementById('saveMealSubtitle').textContent = `Choose a protein category for "${name}"`;
-    buildSaveMeatCatSelect();
-    document.getElementById('saveNewCatRow').classList.remove('open');
-    document.getElementById('saveNewCatInput').value = '';
-    document.getElementById('saveMealModal').classList.add('open');
-  }
 
-  function buildSaveMeatCatSelect() {
-    const sel = document.getElementById('saveMeatCatSelect');
-    sel.innerHTML = meatCategories.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')
-      + `<option value="__new__">+ New category...</option>`;
-    sel.onchange = function() {
-      document.getElementById('saveNewCatRow').classList.toggle('open', this.value === '__new__');
-    };
-  }
-
-  function confirmSaveNewMeatCat() {
-    const input = document.getElementById('saveNewCatInput');
-    const name = input.value.trim();
-    if (!name) return;
-    if (!meatCategories.includes(name)) meatCategories.push(name);
-    input.value = '';
-    document.getElementById('saveNewCatRow').classList.remove('open');
-    buildSaveMeatCatSelect();
-    document.getElementById('saveMeatCatSelect').value = name;
-    scheduleSave();
-  }
-
-  function confirmSaveMeal() {
-    if (_pendingSaveCatKey === null) return;
-    const catKey = _pendingSaveCatKey;
-    const mi = _pendingSaveMi;
-    const meal = mealsByCategory[catKey][mi];
-    const name = meal.name.trim();
-    const ings = meal.ingredients.filter(i => i.trim());
-    const sel = document.getElementById('saveMeatCatSelect');
-    let meatCat = sel.value;
-    if (meatCat === '__new__') {
-      const newName = document.getElementById('saveNewCatInput').value.trim();
-      if (!newName) { document.getElementById('saveNewCatInput').focus(); return; }
-      meatCat = newName;
-      if (!meatCategories.includes(meatCat)) meatCategories.push(meatCat);
-    }
+    // Check for duplicate
     if (savedMeals.some(s => s.name.toLowerCase() === name.toLowerCase())) {
       if (!confirm(`"${name}" is already saved. Save again as a new entry?`)) return;
     }
-    savedMeals.push({ name, ingredients: [...ings], category: catKey, meatCategory: meatCat });
-    closeSaveModal();
+
+    savedMeals.push({
+      name: name,
+      ingredients: [...ings],
+      category: catKey
+    });
+
     renderMeals();
     scheduleSave();
-    showToast(`"${name}" saved under ${meatCat}!`);
-  }
-
-  function closeSaveModal() {
-    document.getElementById('saveMealModal').classList.remove('open');
-    _pendingSaveCatKey = null;
-    _pendingSaveMi = null;
+    showToast(`"${name}" saved!`);
   }
 
   function deleteSavedMeal(idx) {
@@ -1208,64 +1213,26 @@
 
   function renderSavedMeals() {
     const container = document.getElementById('savedMealsList');
-
-    // Group by meatCategory
-    const grouped = {};
-    savedMeals.forEach((s, i) => {
-      const cat = s.meatCategory || 'Other';
-      if (!grouped[cat]) grouped[cat] = [];
-      grouped[cat].push({ ...s, _idx: i });
-    });
-
-    // All defined categories first, then any orphaned ones from saved data
-    const extraCats = Object.keys(grouped).filter(c => !meatCategories.includes(c));
-    const allCats = [...meatCategories, ...extraCats].sort((a, b) =>
-      a.toLowerCase() === 'other' ? 1 : b.toLowerCase() === 'other' ? -1 : 0
-    );
-
-    if (!allCats.length) {
-      container.innerHTML = `<div class="empty-state"><div class="icon">🍽️</div><p>No categories yet.<br>Add one below to get started.</p></div>`;
+    if (!savedMeals.length) {
+      container.innerHTML = `<div class="empty-state"><div class="icon">📌</div><p>No saved meals yet.<br>Save a meal from the Planner tab<br>using the 💾 Save button.</p></div>`;
       return;
     }
 
-    const movableCats = allCats.filter(c => c.toLowerCase() !== 'other');
-
-    container.innerHTML = allCats.map((cat) => {
-      const meals = grouped[cat] || [];
-      const isOther = cat.toLowerCase() === 'other';
-      const pos = movableCats.indexOf(cat);
+    container.innerHTML = savedMeals.map((s, i) => {
+      const typeLabel = mealTypes.find(t => t.key === s.category)?.label || s.category;
       return `
-        <div class="house-category">
-          <div class="house-cat-title" style="display:flex;align-items:center;justify-content:space-between;">
-            <span>${esc(cat)} <span style="font-weight:400">(${meals.length})</span></span>
-            <div style="display:flex;gap:2px;align-items:center;">
-              ${!isOther ? `
-                <button class="item-remove" onclick="moveMeatCategory('${esc(cat)}',-1)" title="Move up" style="opacity:${pos === 0 ? '0.25' : '1'};font-size:0.95rem;">↑</button>
-                <button class="item-remove" onclick="moveMeatCategory('${esc(cat)}',1)" title="Move down" style="opacity:${pos === movableCats.length - 1 ? '0.25' : '1'};font-size:0.95rem;">↓</button>
-              ` : ''}
-              <button class="item-remove" onclick="deleteMeatCategory('${esc(cat)}')" title="Delete category">✕</button>
+        <div class="saved-meal-card">
+          <div class="saved-meal-header">
+            <div>
+              <div class="saved-meal-category-tag">${esc(typeLabel)}</div>
+              <div class="saved-meal-name">${esc(s.name)}</div>
+            </div>
+            <div class="saved-meal-actions">
+              <button class="saved-action-btn" onclick="deleteSavedMeal(${i})" title="Delete">✕</button>
             </div>
           </div>
-          <div class="grocery-section" style="padding:10px 16px;">
-            ${meals.length ? meals.map(s => {
-              const typeLabel = mealTypes.find(t => t.key === s.category)?.label || s.category;
-              return `
-                <div class="saved-meal-card" style="margin-bottom:10px;">
-                  <div class="saved-meal-header">
-                    <div>
-                      <div class="saved-meal-category-tag">${esc(typeLabel)}</div>
-                      <div class="saved-meal-name">${esc(s.name)}</div>
-                    </div>
-                    <div class="saved-meal-actions">
-                      <button class="saved-action-btn" onclick="openEditMealModal(${s._idx})" title="Edit" style="color:var(--blue);">✏️</button>
-                      <button class="saved-action-btn" onclick="deleteSavedMeal(${s._idx})" title="Delete">✕</button>
-                    </div>
-                  </div>
-                  <div class="saved-ingredients">
-                    ${s.ingredients.map(ing => `<span class="saved-ing-tag">${esc(ing)}</span>`).join('')}
-                  </div>
-                </div>`;
-            }).join('') : `<div style="padding:8px 0;color:var(--text-soft);font-size:0.85rem;">No meals saved here yet</div>`}
+          <div class="saved-ingredients">
+            ${s.ingredients.map(ing => `<span class="saved-ing-tag">${esc(ing)}</span>`).join('')}
           </div>
         </div>`;
     }).join('');
@@ -1273,161 +1240,21 @@
     updateBadges();
   }
 
-  function addMeatCategory() {
-    const input = document.getElementById('addMeatCatInput');
-    const name = input.value.trim();
-    if (!name) return;
-    if (meatCategories.includes(name)) { showToast(`"${name}" already exists`); return; }
-    meatCategories.push(name);
-    input.value = '';
-    renderSavedMeals();
-    scheduleSave();
-    showToast(`"${name}" category added`);
-  }
-
-  function moveMeatCategory(cat, dir) {
-    const idx = meatCategories.indexOf(cat);
-    if (idx === -1) return;
-    const swap = idx + dir;
-    if (swap < 0 || swap >= meatCategories.length) return;
-    [meatCategories[idx], meatCategories[swap]] = [meatCategories[swap], meatCategories[idx]];
-    renderSavedMeals();
-    scheduleSave();
-  }
-
-  function deleteMeatCategory(cat) {
-    const hasMeals = savedMeals.some(s => (s.meatCategory || 'Other') === cat);
-    if (hasMeals && !confirm(`Delete "${cat}" and all its saved meals?`)) return;
-    meatCategories = meatCategories.filter(c => c !== cat);
-    if (hasMeals) savedMeals = savedMeals.filter(s => (s.meatCategory || 'Other') !== cat);
-    renderSavedMeals();
-    renderMeals();
-    scheduleSave();
-  }
-
-  // --- EDIT SAVED MEAL ---
-  let _editIdx = null;
-
-  function openEditMealModal(idx) {
-    _editIdx = idx;
-    const meal = savedMeals[idx];
-
-    document.getElementById('editMealName').value = meal.name;
-
-    // Populate meal type select
-    const typeSelect = document.getElementById('editMealType');
-    typeSelect.innerHTML = mealTypes.map(t => `<option value="${t.key}" ${meal.category === t.key ? 'selected' : ''}>${t.label}</option>`).join('');
-
-    // Populate protein category select
-    buildEditMeatCatSelect(meal.meatCategory || 'Other');
-
-    // Populate ingredients
-    renderEditIngredients(meal.ingredients.length ? [...meal.ingredients] : ['']);
-
-    document.getElementById('editNewCatRow').classList.remove('open');
-    document.getElementById('editNewCatInput').value = '';
-    document.getElementById('editMealModal').classList.add('open');
-  }
-
-  function buildEditMeatCatSelect(selectedCat) {
-    const sel = document.getElementById('editMeatCat');
-    sel.innerHTML = meatCategories.map(c => `<option value="${esc(c)}" ${c === selectedCat ? 'selected' : ''}>${esc(c)}</option>`).join('')
-      + `<option value="__new__">+ New category...</option>`;
-    sel.onchange = function() {
-      document.getElementById('editNewCatRow').classList.toggle('open', this.value === '__new__');
-    };
-  }
-
-  function renderEditIngredients(ings) {
-    document.getElementById('editIngredientsList').innerHTML = ings.map((ing, i) => `
-      <div class="ingredient-row">
-        <input placeholder="e.g. chicken thighs" value="${esc(ing)}" oninput="_editIngs[${i}]=this.value">
-        ${ings.length > 1 ? `<button class="remove-btn" onclick="removeEditIngredient(${i})">✕</button>` : ''}
-      </div>`).join('');
-    _editIngs = [...ings];
-  }
-
-  let _editIngs = [];
-
-  function addEditIngredient() {
-    _editIngs.push('');
-    renderEditIngredients(_editIngs);
-    const inputs = document.querySelectorAll('#editIngredientsList .ingredient-row input');
-    if (inputs.length) inputs[inputs.length - 1].focus();
-  }
-
-  function removeEditIngredient(i) {
-    _editIngs.splice(i, 1);
-    renderEditIngredients(_editIngs);
-  }
-
-  function confirmEditNewCat() {
-    const input = document.getElementById('editNewCatInput');
-    const name = input.value.trim();
-    if (!name) return;
-    if (!meatCategories.includes(name)) meatCategories.push(name);
-    input.value = '';
-    document.getElementById('editNewCatRow').classList.remove('open');
-    buildEditMeatCatSelect(name);
-    scheduleSave();
-  }
-
-  function confirmEditMeal() {
-    if (_editIdx === null) return;
-    const name = document.getElementById('editMealName').value.trim();
-    if (!name) { document.getElementById('editMealName').focus(); return; }
-
-    const catSel = document.getElementById('editMeatCat');
-    let meatCat = catSel.value;
-    if (meatCat === '__new__') {
-      const newName = document.getElementById('editNewCatInput').value.trim();
-      if (!newName) { document.getElementById('editNewCatInput').focus(); return; }
-      meatCat = newName;
-      if (!meatCategories.includes(meatCat)) meatCategories.push(meatCat);
-    }
-
-    const ings = _editIngs.filter(i => i.trim());
-    if (!ings.length) { showToast('Add at least one ingredient'); return; }
-
-    savedMeals[_editIdx] = {
-      ...savedMeals[_editIdx],
-      name,
-      category: document.getElementById('editMealType').value,
-      meatCategory: meatCat,
-      ingredients: ings,
-    };
-
-    closeEditModal();
-    renderSavedMeals();
-    scheduleSave();
-    showToast(`"${name}" updated`);
-  }
-
-  function closeEditModal() {
-    document.getElementById('editMealModal').classList.remove('open');
-    _editIdx = null;
-    _editIngs = [];
-  }
-
   // --- LOAD MODAL ---
   function openLoadModal(catKey) {
     loadTargetCatKey = catKey;
     const typeLabel = mealTypes.find(t => t.key === catKey)?.label || catKey;
-    document.getElementById('modalTitle').textContent = `Load ${typeLabel} Meal`;
-    document.getElementById('modalSubtitle').textContent = `Saved ${typeLabel.toLowerCase()} meals`;
-
-    const filtered = savedMeals
-      .map((s, i) => ({ ...s, _realIdx: i }))
-      .filter(s => s.category === catKey);
+    document.getElementById('modalTitle').textContent = `Load into ${typeLabel}`;
+    document.getElementById('modalSubtitle').textContent = 'Pick a saved meal to add';
 
     const list = document.getElementById('modalList');
-    if (!filtered.length) {
-      list.innerHTML = `<div class="modal-empty">No saved ${typeLabel.toLowerCase()} meals yet.<br>Save one from the ${typeLabel} section first.</div>`;
+    if (!savedMeals.length) {
+      list.innerHTML = `<div class="modal-empty">No saved meals yet. Save one first!</div>`;
     } else {
-      list.innerHTML = filtered.map(s => {
+      list.innerHTML = savedMeals.map((s, i) => {
         const ings = s.ingredients.slice(0, 4).join(', ') + (s.ingredients.length > 4 ? ` +${s.ingredients.length - 4} more` : '');
         return `
-          <div class="modal-meal-option" onclick="loadSavedMeal(${s._realIdx})">
+          <div class="modal-meal-option" onclick="loadSavedMeal(${i})">
             <div class="modal-meal-option-left">
               <div class="modal-meal-option-name">${esc(s.name)}</div>
               <div class="modal-meal-option-ings">${esc(ings)}</div>
@@ -1448,48 +1275,38 @@
   function loadSavedMeal(savedIdx) {
     const saved = savedMeals[savedIdx];
     const catKey = loadTargetCatKey;
-    const slots = mealsByCategory[catKey];
-    // Fill the last empty slot if one exists, otherwise add a new entry
-    const emptyIdx = slots.map((m, i) => i).reverse().find(i => !slots[i].name.trim() && slots[i].ingredients.every(ing => !ing.trim()));
-    if (emptyIdx !== undefined) {
-      slots[emptyIdx] = { name: saved.name, ingredients: [...saved.ingredients] };
-    } else {
-      slots.push({ name: saved.name, ingredients: [...saved.ingredients] });
+    const list = mealsByDay[selectedDay][catKey];
+    // Add as a new meal in that category, for the currently selected day
+    list.push({
+      name: saved.name,
+      ingredients: [...saved.ingredients]
+    });
+    // Remove empty placeholder if it's the only one
+    if (list.length > 1 && list[0].name === '' && list[0].ingredients.every(i => !i.trim())) {
+      list.splice(0, 1);
     }
     openCategories[catKey] = true;
     closeModal();
     renderMeals();
     scheduleSave();
-    showToast(`"${saved.name}" loaded into ${mealTypes.find(t=>t.key===catKey)?.label}`);
+    showToast(`"${saved.name}" loaded into ${mealTypes.find(t=>t.key===catKey)?.label} for ${dayNames[selectedDay]}`);
   }
 
   // --- GROCERY ---
   function getGroceryItems() {
-    const map = new Map(); // normalised text → { text, sources }
-    mealTypes.forEach(type => {
-      mealsByCategory[type.key].forEach(meal => {
-        meal.ingredients.forEach(ing => {
-          const t = ing.trim();
-          if (!t) return;
-          const key = t.toLowerCase();
-          if (!map.has(key)) map.set(key, { text: t, sources: [] });
-          const src = meal.name.trim() || `${type.label} (unnamed)`;
-          if (!map.get(key).sources.includes(src)) map.get(key).sources.push(src);
+    const items = [];
+    dayKeys.forEach(d => {
+      mealTypes.forEach(type => {
+        mealsByDay[d][type.key].forEach(meal => {
+          meal.ingredients.forEach(ing => {
+            const t = ing.trim();
+            if (t) items.push({ text: t, source: `${dayNames[d].slice(0,3)} · ${meal.name.trim() || `${type.label} (unnamed)`}` });
+          });
         });
       });
     });
-    extraGroceries.forEach(g => {
-      const t = g.trim();
-      if (!t) return;
-      const key = t.toLowerCase();
-      if (!map.has(key)) map.set(key, { text: t, sources: [] });
-      if (!map.get(key).sources.includes('Added manually')) map.get(key).sources.push('Added manually');
-    });
-    return Array.from(map.values()).map(item => ({
-      text: item.text,
-      source: item.sources.join(', '),
-      key: `g_${item.text.toLowerCase()}`
-    }));
+    extraGroceries.forEach(g => items.push({ text: g, source: 'Added manually' }));
+    return items;
   }
 
   function renderGroceryList() {
@@ -1503,11 +1320,12 @@
       return;
     }
 
-    container.innerHTML = `<div class="grocery-section">${items.map(item => {
-      const checked = groceryChecked[item.key] || false;
+    container.innerHTML = `<div class="grocery-section">${items.map((item, i) => {
+      const key = `g_${i}_${item.text}`;
+      const checked = groceryChecked[key] || false;
       return `
         <div class="check-item ${checked ? 'checked' : ''}">
-          <div class="checkbox" onclick="toggleGrocery('${esc(item.key)}')">
+          <div class="checkbox" onclick="toggleGrocery('${esc(key)}')">
             <svg viewBox="0 0 16 16"><polyline points="3,8 7,12 13,4"/></svg>
           </div>
           <span class="item-text">${esc(item.text)}</span>
@@ -1515,9 +1333,9 @@
         </div>`;
     }).join('')}</div>`;
 
-    const checkedCount = items.filter(item => groceryChecked[item.key]).length;
-    document.getElementById('groceryProgress').textContent = `${checkedCount} / ${items.length}`;
-    document.getElementById('groceryFill').style.width = items.length ? `${(checkedCount / items.length) * 100}%` : '0%';
+    const checked = items.filter((_, i) => groceryChecked[`g_${i}_${items[i].text}`]).length;
+    document.getElementById('groceryProgress').textContent = `${checked} / ${items.length}`;
+    document.getElementById('groceryFill').style.width = items.length ? `${(checked / items.length) * 100}%` : '0%';
     updateBadges();
   }
 
@@ -1632,14 +1450,17 @@
   }
 
   function resetWeek() {
-    if (!confirm('Start fresh for a new week? This clears current meals and grocery/house check marks. Your house items and saved meals are kept.')) return;
-    mealTypes.forEach(t => {
-      mealsByCategory[t.key] = [{ name: '', ingredients: [''] }];
-      openCategories[t.key] = t.key === 'breakfast';
+    if (!confirm('Start fresh for a new week? This clears current meals, grocery checks, and house checks. Saved meals are kept.')) return;
+    dayKeys.forEach(d => {
+      mealTypes.forEach(t => { mealsByDay[d][t.key] = [{ name: '', ingredients: [''] }]; });
     });
+    mealTypes.forEach(t => { openCategories[t.key] = t.key === 'breakfast'; });
+    selectedDay = dayKeys[new Date().getDay()];
     extraGroceries = [];
     groceryChecked = {};
     houseChecked = {};
+    houseItems = JSON.parse(JSON.stringify(defaultHouseItems));
+    renderDayStrip();
     renderMeals();
     switchTab('meals');
     scheduleSave();
@@ -1647,7 +1468,7 @@
 
   function updateBadges() {
     const gItems = getGroceryItems();
-    const gCount = gItems.filter(item => !groceryChecked[item.key]).length;
+    const gCount = gItems.filter((_, i) => !groceryChecked[`g_${i}_${gItems[i].text}`]).length;
     const gBadge = document.getElementById('groceryBadge');
     gBadge.style.display = gCount > 0 ? 'flex' : 'none';
     gBadge.textContent = gCount;
@@ -1686,14 +1507,9 @@
   document.getElementById('loadModal').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
   });
-  document.getElementById('saveMealModal').addEventListener('click', function(e) {
-    if (e.target === this) closeSaveModal();
-  });
-  document.getElementById('editMealModal').addEventListener('click', function(e) {
-    if (e.target === this) closeEditModal();
-  });
 
   // Init — load saved data, then render
+  renderDayStrip();
   renderMeals();
   buildCatSelect();
   loadSavedData();
