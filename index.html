@@ -175,41 +175,6 @@
     font-style: italic;
   }
 
-  .theme-dinner-ideas { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
-
-  .theme-dinner-ideas-label {
-    font-size: 0.68rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-    color: var(--text-soft);
-    margin-bottom: 8px;
-  }
-
-  .theme-idea-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 10px;
-    margin: 0 6px 6px 0;
-    border-radius: 8px;
-    border: 1.5px dashed var(--border);
-    background: var(--bg);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--text);
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .theme-idea-chip:hover {
-    border-color: var(--accent);
-    border-style: solid;
-    color: var(--accent);
-    background: var(--accent-light);
-  }
-
   /* WEEK GRID (calendar) */
   .week-grid-wrap {
     max-width: 600px;
@@ -962,7 +927,6 @@
     <div class="theme-card">
       <div class="theme-card-title">This Week's Protein Theme</div>
       <div class="theme-pills" id="themePills"></div>
-      <div id="themeDinnerIdeas"></div>
     </div>
     <div class="theme-card">
       <div class="theme-card-title">Last Week's Theme</div>
@@ -1298,41 +1262,12 @@
     } else {
       lastEl.innerHTML = `<span class="theme-last-value na">N/A</span>`;
     }
-
-    const ideasEl = document.getElementById('themeDinnerIdeas');
-    if (!weekTheme) {
-      ideasEl.innerHTML = '';
-    } else {
-      const opt = proteinOptions.find(p => p.key === weekTheme);
-      const ideas = proteinDinnerIdeas[weekTheme] || [];
-      ideasEl.innerHTML = `
-        <div class="theme-dinner-ideas">
-          <div class="theme-dinner-ideas-label">${opt ? esc(opt.label) : ''} dinner ideas — tap to add to ${dayNames[selectedDay]}</div>
-          ${ideas.map((idea, i) => `<button class="theme-idea-chip" onclick="addThemeDinnerIdea(${i})">+ ${esc(idea.name)}</button>`).join('')}
-        </div>`;
-    }
   }
 
   function setWeekTheme(key) {
     weekTheme = (weekTheme === key) ? '' : key;
     renderThemeSection();
     scheduleSave();
-  }
-
-  function addThemeDinnerIdea(i) {
-    const ideas = proteinDinnerIdeas[weekTheme] || [];
-    const idea = ideas[i];
-    if (!idea) return;
-    const list = mealsByDay[selectedDay]['dinner'];
-    list.push({ name: idea.name, ingredients: [...idea.ingredients] });
-    if (list.length > 1 && list[0].name === '' && list[0].ingredients.every(x => !x.trim())) {
-      list.splice(0, 1);
-    }
-    openCategories['dinner'] = true;
-    renderWeekGrid();
-    renderMeals();
-    scheduleSave();
-    showToast(`"${idea.name}" added to Dinner for ${dayNames[selectedDay]}`);
   }
 
   // --- WEEK GRID (calendar) ---
