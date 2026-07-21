@@ -377,6 +377,23 @@
 
   .category-header.open .category-chevron { transform: rotate(180deg); }
 
+  .category-header-right { display: flex; align-items: center; gap: 6px; }
+
+  .category-add-btn {
+    background: none;
+    border: none;
+    color: var(--text-soft);
+    cursor: pointer;
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 4px 8px;
+    border-radius: 8px;
+    transition: all 0.2s;
+  }
+
+  .category-add-btn:hover { background: var(--accent-light); color: var(--accent); }
+
   .category-body {
     display: none;
     background: var(--card);
@@ -1018,8 +1035,8 @@
 <!-- EDIT SAVED MEAL MODAL -->
 <div class="modal-overlay" id="editSavedModal">
   <div class="modal">
-    <div class="modal-title" id="editSavedTitle">Edit Meal</div>
-    <div class="modal-subtitle">Edit, add, or remove ingredients</div>
+    <div class="modal-subtitle">Meal name</div>
+    <input class="meal-name-input" id="editSavedNameInput" placeholder="e.g. Overnight oats" oninput="updateEditSavedName(this.value)" />
     <div class="ingredients-label">Ingredients</div>
     <div id="editSavedIngredients"></div>
     <button class="add-btn" onclick="addEditSavedIngredient()">+ ingredient</button>
@@ -1506,15 +1523,39 @@
 
   function openEditSavedModal(i) {
     editSavedIdx = i;
-    document.getElementById('editSavedTitle').textContent = savedMeals[i].name;
+    const nameInput = document.getElementById('editSavedNameInput');
+    nameInput.value = savedMeals[i].name;
     renderEditSavedIngredients();
     document.getElementById('editSavedModal').classList.add('open');
+    if (!savedMeals[i].name.trim()) nameInput.focus();
+  }
+
+  function updateEditSavedName(val) {
+    savedMeals[editSavedIdx].name = val;
+    scheduleSave();
   }
 
   function closeEditSavedModal() {
+    if (editSavedIdx != null) {
+      const s = savedMeals[editSavedIdx];
+      // Discard a blank draft (e.g. opened via the category + button, then closed without entering anything)
+      if (s && !s.name.trim() && !s.ingredients.some(i => i.trim())) {
+        savedMeals.splice(editSavedIdx, 1);
+      }
+    }
     document.getElementById('editSavedModal').classList.remove('open');
     editSavedIdx = null;
     renderSavedMeals();
+    scheduleSave();
+  }
+
+  function addSavedMealToCategory(catKey) {
+    savedMeals.push({ name: '', ingredients: [''], category: catKey });
+    openSavedCategories[catKey] = true;
+    const idx = savedMeals.length - 1;
+    renderSavedMeals();
+    scheduleSave();
+    openEditSavedModal(idx);
   }
 
   function renderEditSavedIngredients() {
@@ -1544,10 +1585,6 @@
 
   function renderSavedMeals() {
     const container = document.getElementById('savedMealsList');
-    if (!savedMeals.length) {
-      container.innerHTML = `<div class="empty-state"><div class="icon">📌</div><p>No saved meals yet.<br>Save a meal from the Planner tab<br>using the 💾 Save button.</p></div>`;
-      return;
-    }
 
     container.innerHTML = mealTypes.map(type => {
       const items = savedMeals
@@ -1563,7 +1600,10 @@
               <span class="category-name">${type.label}</span>
               <span class="category-count">${items.length} saved</span>
             </div>
-            <span class="category-chevron">▼</span>
+            <div class="category-header-right">
+              <button class="category-add-btn" onclick="event.stopPropagation();addSavedMealToCategory('${type.key}')" title="Add a ${type.label.toLowerCase()} meal">+</button>
+              <span class="category-chevron">▼</span>
+            </div>
           </div>
           <div class="category-body ${isOpen ? 'open' : ''}">
             ${items.length ? items.map(({ s, i }) => `
