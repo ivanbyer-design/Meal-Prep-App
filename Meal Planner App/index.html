@@ -1520,13 +1520,19 @@
     loadTargetCatKey = catKey;
     const typeLabel = mealTypes.find(t => t.key === catKey)?.label || catKey;
     document.getElementById('modalTitle').textContent = `Load into ${typeLabel}`;
-    document.getElementById('modalSubtitle').textContent = 'Pick a saved meal to add';
+    document.getElementById('modalSubtitle').textContent = `Pick a saved ${typeLabel.toLowerCase()} to add`;
+
+    const filtered = savedMeals
+      .map((s, i) => ({ s, i }))
+      .filter(({ s }) => s.category === catKey);
 
     const list = document.getElementById('modalList');
     if (!savedMeals.length) {
       list.innerHTML = `<div class="modal-empty">No saved meals yet. Save one first!</div>`;
+    } else if (!filtered.length) {
+      list.innerHTML = `<div class="modal-empty">No saved ${typeLabel.toLowerCase()} meals yet. Save one from this category first!</div>`;
     } else {
-      list.innerHTML = savedMeals.map((s, i) => {
+      list.innerHTML = filtered.map(({ s, i }) => {
         const ings = s.ingredients.slice(0, 4).join(', ') + (s.ingredients.length > 4 ? ` +${s.ingredients.length - 4} more` : '');
         return `
           <div class="modal-meal-option" onclick="loadSavedMeal(${i})">
