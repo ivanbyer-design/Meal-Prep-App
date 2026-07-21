@@ -535,6 +535,7 @@
     border: 1.5px solid var(--border);
     box-shadow: var(--shadow);
     transition: border-color 0.2s;
+    cursor: pointer;
   }
 
   .saved-meal-card:hover { border-color: var(--accent); }
@@ -1014,6 +1015,18 @@
   </div>
 </div>
 
+<!-- EDIT SAVED MEAL MODAL -->
+<div class="modal-overlay" id="editSavedModal">
+  <div class="modal">
+    <div class="modal-title" id="editSavedTitle">Edit Meal</div>
+    <div class="modal-subtitle">Edit, add, or remove ingredients</div>
+    <div class="ingredients-label">Ingredients</div>
+    <div id="editSavedIngredients"></div>
+    <button class="add-btn" onclick="addEditSavedIngredient()">+ ingredient</button>
+    <button class="modal-close" onclick="closeEditSavedModal()" style="margin-top:16px;">Done</button>
+  </div>
+</div>
+
 <script>
   const tabKeys = ['meals','saved','grocery','house'];
   const mealTypes = [
@@ -1488,6 +1501,47 @@
     renderSavedMeals();
   }
 
+  // --- EDIT SAVED MEAL (ingredients popup) ---
+  let editSavedIdx = null;
+
+  function openEditSavedModal(i) {
+    editSavedIdx = i;
+    document.getElementById('editSavedTitle').textContent = savedMeals[i].name;
+    renderEditSavedIngredients();
+    document.getElementById('editSavedModal').classList.add('open');
+  }
+
+  function closeEditSavedModal() {
+    document.getElementById('editSavedModal').classList.remove('open');
+    editSavedIdx = null;
+    renderSavedMeals();
+  }
+
+  function renderEditSavedIngredients() {
+    const s = savedMeals[editSavedIdx];
+    document.getElementById('editSavedIngredients').innerHTML = s.ingredients.map((ing, ii) => `
+      <div class="ingredient-row">
+        <input placeholder="e.g. chicken thighs" value="${esc(ing)}" oninput="savedMeals[${editSavedIdx}].ingredients[${ii}]=this.value;scheduleSave()" />
+        ${s.ingredients.length > 1 ? `<button class="remove-btn" onclick="removeEditSavedIngredient(${ii})">✕</button>` : ''}
+      </div>
+    `).join('');
+  }
+
+  function addEditSavedIngredient() {
+    savedMeals[editSavedIdx].ingredients.push('');
+    renderEditSavedIngredients();
+    scheduleSave();
+    const inputs = document.querySelectorAll('#editSavedIngredients .ingredient-row input');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }
+
+  function removeEditSavedIngredient(ii) {
+    savedMeals[editSavedIdx].ingredients.splice(ii, 1);
+    if (!savedMeals[editSavedIdx].ingredients.length) savedMeals[editSavedIdx].ingredients = [''];
+    renderEditSavedIngredients();
+    scheduleSave();
+  }
+
   function renderSavedMeals() {
     const container = document.getElementById('savedMealsList');
     if (!savedMeals.length) {
@@ -1513,11 +1567,11 @@
           </div>
           <div class="category-body ${isOpen ? 'open' : ''}">
             ${items.length ? items.map(({ s, i }) => `
-              <div class="saved-meal-card">
+              <div class="saved-meal-card" onclick="openEditSavedModal(${i})">
                 <div class="saved-meal-header">
                   <div class="saved-meal-name">${esc(s.name)}</div>
                   <div class="saved-meal-actions">
-                    <button class="saved-action-btn" onclick="deleteSavedMeal(${i})" title="Delete">✕</button>
+                    <button class="saved-action-btn" onclick="event.stopPropagation();deleteSavedMeal(${i})" title="Delete">✕</button>
                   </div>
                 </div>
                 <div class="saved-ingredients">
@@ -1872,6 +1926,10 @@
   // Close modal on overlay click
   document.getElementById('loadModal').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
+  });
+
+  document.getElementById('editSavedModal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditSavedModal();
   });
 
   // Init — load saved data, then render
