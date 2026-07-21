@@ -1776,7 +1776,7 @@
         <div class="house-cat-title">${esc(cat)}</div>
         <div class="grocery-section">
           ${items.length ? items.map((item, i) => {
-            const key = `h_${cat}_${i}`;
+            const key = `h_${cat}_${item}`;
             total++;
             const isChecked = houseChecked[key] || false;
             if (isChecked) checked++;
@@ -1814,9 +1814,9 @@
   }
 
   function removeHouseItem(cat, i) {
-    houseItems[cat].splice(i, 1);
+    const [removed] = houseItems[cat].splice(i, 1);
     if (!houseItems[cat].length) delete houseItems[cat];
-    houseChecked = {};
+    delete houseChecked[`h_${cat}_${removed}`];
     renderHouseList();
     scheduleSave();
   }
@@ -1870,7 +1870,7 @@
 
     let hCount = 0;
     Object.entries(houseItems).forEach(([cat, items]) => {
-      items.forEach((_, i) => { if (!houseChecked[`h_${cat}_${i}`]) hCount++; });
+      items.forEach(item => { if (!houseChecked[`h_${cat}_${item}`]) hCount++; });
     });
     const hBadge = document.getElementById('houseBadge');
     hBadge.style.display = hCount > 0 ? 'flex' : 'none';
