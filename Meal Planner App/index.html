@@ -1620,19 +1620,34 @@
 
   // --- GROCERY ---
   function getGroceryItems() {
-    const items = [];
+    const merged = new Map(); // normalized ingredient text -> { text, sources: [] }
+
+    function addItem(rawText, source) {
+      const t = rawText.trim();
+      if (!t) return;
+      const key = t.toLowerCase();
+      if (!merged.has(key)) merged.set(key, { text: t, sources: [] });
+      const entry = merged.get(key);
+      if (!entry.sources.includes(source)) entry.sources.push(source);
+    }
+
     dayKeys.forEach(d => {
       mealTypes.forEach(type => {
         mealsByDay[d][type.key].forEach(meal => {
           meal.ingredients.forEach(ing => {
-            const t = ing.trim();
-            if (t) items.push({ text: t, source: `${dayNames[d].slice(0,3)} · ${meal.name.trim() || `${type.label} (unnamed)`}` });
+            addItem(ing, `${dayNames[d].slice(0,3)} · ${meal.name.trim() || `${type.label} (unnamed)`}`);
           });
         });
       });
     });
-    extraGroceries.forEach(g => items.push({ text: g, source: 'Added manually' }));
-    return items;
+    extraGroceries.forEach(g => addItem(g, 'Added manually'));
+
+    return Array.from(merged.values()).map(entry => ({
+      text: entry.text,
+      source: entry.sources.length <= 2
+        ? entry.sources.join(', ')
+        : `${entry.sources[0]} +${entry.sources.length - 1} more`
+    }));
   }
 
   function renderGroceryList() {
@@ -1646,8 +1661,8 @@
       return;
     }
 
-    container.innerHTML = `<div class="grocery-section">${items.map((item, i) => {
-      const key = `g_${i}_${item.text}`;
+    container.innerHTML = `<div class="grocery-section">${items.map((item) => {
+      const key = `g_${item.text.toLowerCase()}`;
       const checked = groceryChecked[key] || false;
       return `
         <div class="check-item ${checked ? 'checked' : ''}">
@@ -1659,7 +1674,7 @@
         </div>`;
     }).join('')}</div>`;
 
-    const checked = items.filter((_, i) => groceryChecked[`g_${i}_${items[i].text}`]).length;
+    const checked = items.filter(item => groceryChecked[`g_${item.text.toLowerCase()}`]).length;
     document.getElementById('groceryProgress').textContent = `${checked} / ${items.length}`;
     document.getElementById('groceryFill').style.width = items.length ? `${(checked / items.length) * 100}%` : '0%';
     updateBadges();
@@ -1720,7 +1735,7 @@
                   <svg viewBox="0 0 16 16"><polyline points="3,8 7,12 13,4"/></svg>
                 </div>
                 <span class="item-text">${esc(item)}</span>
-                <button class="item-to-grocery ${extraGroceries.includes(item) ? 'added' : ''}" onclick="addHouseToGrocery('${esc(item)}')" title="${extraGroceries.includes(item) ? 'Already on grocery list' : 'Add to grocery list'}">🛒</button>
+                <button class="item-to-grocery ${extraGroceries.some(g => g.toLowerCase() === item.toLowerCase()) ? 'added' : ''}" onclick="addHouseToGrocery('${esc(item)}')" title="${extraGroceries.some(g => g.toLowerCase() === item.toLowerCase()) ? 'Already on grocery list' : 'Add to grocery list'}">🛒</button>
                 <button class="item-remove" onclick="removeHouseItem('${esc(cat)}',${i})">✕</button>
               </div>`;
           }).join('') : `<div style="padding:8px 0;color:var(--text-soft);font-size:0.85rem;">No items yet</div>`}
@@ -1737,7 +1752,7 @@
   function toggleHouse(key) { houseChecked[key] = !houseChecked[key]; renderHouseList(); scheduleSave(); }
 
   function addHouseToGrocery(itemName) {
-    if (extraGroceries.includes(itemName)) {
+    if (extraGroceries.some(g => g.toLowerCase() === itemName.toLowerCase())) {
       showToast(`"${itemName}" is already on the grocery list`);
       return;
     }
@@ -1797,7 +1812,7 @@
 
   function updateBadges() {
     const gItems = getGroceryItems();
-    const gCount = gItems.filter((_, i) => !groceryChecked[`g_${i}_${gItems[i].text}`]).length;
+    const gCount = gItems.filter(item => !groceryChecked[`g_${item.text.toLowerCase()}`]).length;
     const gBadge = document.getElementById('groceryBadge');
     gBadge.style.display = gCount > 0 ? 'flex' : 'none';
     gBadge.textContent = gCount;
