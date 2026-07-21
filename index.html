@@ -573,15 +573,6 @@
     font-weight: 500;
   }
 
-  .saved-meal-category-tag {
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--accent);
-    margin-bottom: 4px;
-  }
-
   /* LOAD MODAL */
   .modal-overlay {
     display: none;
@@ -1079,6 +1070,7 @@
 
   let mealsByDay = {};
   let openCategories = {};
+  let openSavedCategories = {};
   let selectedDay = dayKeys[new Date().getDay()];
   let weekDates = [];
   let _migrated = false;
@@ -1090,7 +1082,10 @@
       mealsByDay[d] = {};
       mealTypes.forEach(t => { mealsByDay[d][t.key] = [{ name: '', ingredients: [''] }]; });
     });
-    mealTypes.forEach(t => { openCategories[t.key] = t.key === 'breakfast'; });
+    mealTypes.forEach(t => {
+      openCategories[t.key] = t.key === 'breakfast';
+      openSavedCategories[t.key] = t.key === 'breakfast';
+    });
   }
   initDefaults();
 
@@ -1118,6 +1113,7 @@
     return {
       mealsByDay,
       openCategories,
+      openSavedCategories,
       savedMeals,
       extraGroceries,
       groceryChecked,
@@ -1144,6 +1140,7 @@
         _migrated = true;
       }
       if (data.openCategories) openCategories = data.openCategories;
+      if (data.openSavedCategories) openSavedCategories = data.openSavedCategories;
       if (data.savedMeals) savedMeals = data.savedMeals;
       if (data.extraGroceries) extraGroceries = data.extraGroceries;
       if (data.groceryChecked) groceryChecked = data.groceryChecked;
@@ -1486,6 +1483,11 @@
     showToast(`"${name}" removed`);
   }
 
+  function toggleSavedCategory(key) {
+    openSavedCategories[key] = !openSavedCategories[key];
+    renderSavedMeals();
+  }
+
   function renderSavedMeals() {
     const container = document.getElementById('savedMealsList');
     if (!savedMeals.length) {
@@ -1493,21 +1495,35 @@
       return;
     }
 
-    container.innerHTML = savedMeals.map((s, i) => {
-      const typeLabel = mealTypes.find(t => t.key === s.category)?.label || s.category;
+    container.innerHTML = mealTypes.map(type => {
+      const items = savedMeals
+        .map((s, i) => ({ s, i }))
+        .filter(({ s }) => s.category === type.key);
+      const isOpen = openSavedCategories[type.key];
+
       return `
-        <div class="saved-meal-card">
-          <div class="saved-meal-header">
-            <div>
-              <div class="saved-meal-category-tag">${esc(typeLabel)}</div>
-              <div class="saved-meal-name">${esc(s.name)}</div>
+        <div class="meal-category">
+          <div class="category-header ${isOpen ? 'open' : ''}" onclick="toggleSavedCategory('${type.key}')">
+            <div class="category-header-left">
+              <span class="category-icon">${type.icon}</span>
+              <span class="category-name">${type.label}</span>
+              <span class="category-count">${items.length} saved</span>
             </div>
-            <div class="saved-meal-actions">
-              <button class="saved-action-btn" onclick="deleteSavedMeal(${i})" title="Delete">✕</button>
-            </div>
+            <span class="category-chevron">▼</span>
           </div>
-          <div class="saved-ingredients">
-            ${s.ingredients.map(ing => `<span class="saved-ing-tag">${esc(ing)}</span>`).join('')}
+          <div class="category-body ${isOpen ? 'open' : ''}">
+            ${items.length ? items.map(({ s, i }) => `
+              <div class="saved-meal-card">
+                <div class="saved-meal-header">
+                  <div class="saved-meal-name">${esc(s.name)}</div>
+                  <div class="saved-meal-actions">
+                    <button class="saved-action-btn" onclick="deleteSavedMeal(${i})" title="Delete">✕</button>
+                  </div>
+                </div>
+                <div class="saved-ingredients">
+                  ${s.ingredients.map(ing => `<span class="saved-ing-tag">${esc(ing)}</span>`).join('')}
+                </div>
+              </div>`).join('') : `<div style="padding:8px 0;color:var(--text-soft);font-size:0.85rem;">No saved ${type.label.toLowerCase()} yet</div>`}
           </div>
         </div>`;
     }).join('');
