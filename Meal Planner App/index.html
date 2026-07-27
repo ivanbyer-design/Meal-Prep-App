@@ -772,6 +772,8 @@
 
   .clear-btn:hover { border-color: var(--red); color: var(--red); background: var(--red-light); }
 
+  .save-list-btn:hover { border-color: var(--green); color: var(--green); background: rgba(122,184,138,0.12); }
+
   /* HOUSE ADD WITH CATEGORY */
   .add-house-row {
     display: flex; gap: 8px; margin-top: 10px;
@@ -977,6 +979,9 @@
     <select id="houseCatSelect"></select>
     <button onclick="addHouseItem()">Add</button>
   </div>
+  <div class="clear-section">
+    <button class="clear-btn save-list-btn" onclick="saveHouseListPermanently()">💾 Save List (keep items after weekly reset)</button>
+  </div>
   <div class="new-cat-row" id="newCatRow">
     <input type="text" id="newCatInput" placeholder="New category name..." onkeydown="if(event.key==='Enter')confirmNewCat()">
     <button onclick="confirmNewCat()">Create</button>
@@ -1087,7 +1092,7 @@
   let extraGroceries = [];
   let groceryChecked = {};
 
-  const defaultHouseItems = {
+  let defaultHouseItems = {
     'Kitchen & Cleaning': ['Dish soap', 'Sponges', 'Paper towels', 'Trash bags', 'All-purpose cleaner', 'Aluminum foil', 'Zip-lock bags'],
     'Bathroom': ['Toilet paper', 'Hand soap', 'Toothpaste', 'Shampoo', 'Body wash'],
     'Laundry': ['Laundry detergent', 'Dryer sheets'],
@@ -1113,6 +1118,7 @@
       groceryChecked,
       houseItems,
       houseChecked,
+      defaultHouseItems,
       weekTheme,
       lastWeekTheme,
       _savedAt: new Date().toISOString()
@@ -1140,6 +1146,7 @@
       if (data.groceryChecked) groceryChecked = data.groceryChecked;
       if (data.houseItems) houseItems = data.houseItems;
       if (data.houseChecked) houseChecked = data.houseChecked;
+      if (data.defaultHouseItems) defaultHouseItems = data.defaultHouseItems;
       if (data.weekTheme != null) weekTheme = data.weekTheme;
       if (data.lastWeekTheme != null) lastWeekTheme = data.lastWeekTheme;
       return true;
@@ -1746,6 +1753,12 @@
   }
 
   // --- HOUSE ---
+  function saveHouseListPermanently() {
+    defaultHouseItems = JSON.parse(JSON.stringify(houseItems));
+    scheduleSave();
+    showToast('House list saved — it will stick around after your next weekly reset');
+  }
+
   function buildCatSelect() {
     const sel = document.getElementById('houseCatSelect');
     const cats = Object.keys(houseItems);
