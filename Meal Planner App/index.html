@@ -1161,25 +1161,27 @@
     return null;
   }
 
-  // --- Cloud storage (window.storage) ---
-  function isCloudAvailable() {
-    return typeof window !== 'undefined' && window.storage && typeof window.storage.get === 'function';
-  }
+  // --- Cloud storage (synced across devices via lifeos-api on the VPS) ---
+  const CLOUD_API_URL = 'https://lifemeos.xyz/api/mealplanner';
+  const CLOUD_API_KEY = 'lifeos-sync-2026';
 
   async function saveToCloud() {
-    if (!isCloudAvailable()) return;
     try {
-      const result = await window.storage.set(STORAGE_KEY, JSON.stringify(getStateSnapshot()));
-      if (!result) console.log('Cloud save: no result returned');
-    } catch(e) { /* silent fail */ }
+      await fetch(CLOUD_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': CLOUD_API_KEY },
+        body: JSON.stringify({ data: getStateSnapshot() })
+      });
+    } catch(e) { /* offline — local save still succeeded */ }
   }
 
   async function loadFromCloud() {
-    if (!isCloudAvailable()) return null;
     try {
-      const result = await window.storage.get(STORAGE_KEY);
-      if (result && result.value) return JSON.parse(result.value);
-    } catch(e) { /* key doesn't exist yet or storage unavailable — silent */ }
+      const res = await fetch(CLOUD_API_URL, { headers: { 'X-API-Key': CLOUD_API_KEY } });
+      if (!res.ok) return null;
+      const result = await res.json();
+      return result && result.data ? result.data : null;
+    } catch(e) { /* offline or unreachable — silent */ }
     return null;
   }
 
