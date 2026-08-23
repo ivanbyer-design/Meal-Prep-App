@@ -643,6 +643,40 @@
     color: var(--text-soft); font-size: 0.88rem;
   }
 
+  .modal-current-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-soft);
+    margin-bottom: 8px;
+  }
+
+  .modal-current-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px;
+    background: var(--accent-light);
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+  }
+
+  .modal-current-name {
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--text);
+  }
+
+  .modal-current-x {
+    background: none; border: none;
+    color: var(--text-soft);
+    cursor: pointer; font-size: 1rem;
+    padding: 2px 8px; border-radius: 8px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .modal-current-x:hover { background: var(--red-light); color: var(--red); }
+
   /* GROCERY & HOUSE */
   .grocery-section {
     background: var(--card);
@@ -996,7 +1030,9 @@
   <div class="modal">
     <div class="modal-title" id="modalTitle">Load Saved Meal</div>
     <div class="modal-subtitle" id="modalSubtitle">Pick a saved meal to add</div>
+    <div id="modalCurrent"></div>
     <div id="modalList"></div>
+    <button class="modal-close" onclick="goEditManually()" style="margin-top:4px;">✎ Type a new meal instead</button>
     <button class="modal-close" onclick="closeModal()">Cancel</button>
   </div>
 </div>
@@ -1325,8 +1361,42 @@
       openThemeMealModal(d);
       return;
     }
+    openLoadModal(typeKey, d);
+  }
+
+  // --- CURRENTLY-SELECTED MEAL(S) SHOWN IN PICKER MODALS ---
+  function renderModalCurrent(d, typeKey) {
+    const el = document.getElementById('modalCurrent');
+    if (!el) return;
+    const dayMeals = mealsByDay[d][typeKey];
+    const items = dayMeals.map((m, i) => ({ m, i })).filter(({ m }) => m.name.trim());
+    if (!items.length) { el.innerHTML = ''; return; }
+    el.innerHTML = `<div class="modal-current-label">Currently set for ${dayNames[d]}</div>` +
+      items.map(({ m, i }) => `
+        <div class="modal-current-item">
+          <span class="modal-current-name">${esc(m.name)}</span>
+          <button class="modal-current-x" onclick="event.stopPropagation();removeMealFromModal('${d}','${typeKey}',${i})" title="Remove from calendar">✕</button>
+        </div>`).join('');
+  }
+
+  function removeMealFromModal(d, typeKey, idx) {
+    const list = mealsByDay[d][typeKey];
+    const removed = list[idx];
+    list.splice(idx, 1);
+    if (!list.length) mealsByDay[d][typeKey] = [{ name: '', ingredients: [''] }];
+    scheduleSave();
+    renderWeekGrid();
+    renderMeals();
+    renderModalCurrent(d, typeKey);
+    showToast(`"${removed.name}" removed from ${dayNames[d]}`);
+  }
+
+  function goEditManually() {
+    const catKey = loadTargetCatKey || 'dinner';
+    const d = themeModalTargetDay || selectedDay;
+    closeModal();
     selectedDay = d;
-    openCategories[typeKey] = true;
+    openCategories[catKey] = true;
     renderThemeSection();
     renderWeekGrid();
     renderMeals();
@@ -1572,11 +1642,15 @@
   }
 
   // --- LOAD MODAL ---
-  function openLoadModal(catKey) {
+  function openLoadModal(catKey, d) {
+    const targetDay = d || selectedDay;
+    selectedDay = targetDay;
+    openCategories[catKey] = true;
     loadTargetCatKey = catKey;
     const typeLabel = mealTypes.find(t => t.key === catKey)?.label || catKey;
-    document.getElementById('modalTitle').textContent = `Load into ${typeLabel}`;
-    document.getElementById('modalSubtitle').textContent = `Pick a saved ${typeLabel.toLowerCase()} to add`;
+    document.getElementById('modalTitle').textContent = typeLabel;
+    document.getElementById('modalSubtitle').textContent = `${dayNames[targetDay]} · pick a saved ${typeLabel.toLowerCase()} to add`;
+    renderModalCurrent(targetDay, catKey);
 
     const filtered = savedMeals
       .map((s, i) => ({ s, i }))
@@ -1601,6 +1675,7 @@
       }).join('');
     }
 
+    renderWeekGrid();
     document.getElementById('loadModal').classList.add('open');
   }
 
@@ -1613,9 +1688,11 @@
   // --- THEME MEAL PICKER (for dinner boxes on the week grid) ---
   function openThemeMealModal(d) {
     themeModalTargetDay = d;
+    loadTargetCatKey = 'dinner';
     const opt = proteinOptions.find(p => p.key === weekTheme);
     document.getElementById('modalTitle').textContent = `${opt ? opt.label : 'Theme'} Dinner Ideas`;
     document.getElementById('modalSubtitle').textContent = `Pick a dinner for ${dayNames[d]}`;
+    renderModalCurrent(d, 'dinner');
 
     const ideas = proteinDinnerIdeas[weekTheme] || [];
     const list = document.getElementById('modalList');
