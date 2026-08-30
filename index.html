@@ -643,6 +643,33 @@
     color: var(--text-soft); font-size: 0.88rem;
   }
 
+  .ip-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+  .ip-item.disabled { opacity: 0.55; cursor: default; background: var(--bg-in); }
+  .ip-item input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--accent); }
+  .ip-item-text { flex: 1; font-size: 0.9rem; color: var(--text); }
+  .ip-item-tag { font-size: 0.72rem; color: var(--text-soft); white-space: nowrap; }
+  .ip-confirm-btn {
+    width: 100%;
+    background: var(--accent);
+    border: none;
+    border-radius: var(--radius-sm);
+    color: #fff;
+    padding: 11px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem; font-weight: 600;
+    cursor: pointer;
+    margin-top: 4px;
+    transition: background 0.2s;
+  }
+  .ip-confirm-btn:hover { background: var(--accent-hover); }
+
   .modal-current-label {
     font-size: 0.72rem;
     font-weight: 700;
@@ -1034,6 +1061,17 @@
     <div id="modalList"></div>
     <button class="modal-close" onclick="goEditManually()" style="margin-top:4px;">✎ Type a new meal instead</button>
     <button class="modal-close" onclick="closeModal()">Cancel</button>
+  </div>
+</div>
+
+<!-- INGREDIENT PICKER MODAL -->
+<div class="modal-overlay" id="ingredientPickerModal">
+  <div class="modal">
+    <div class="modal-title" id="ipModalTitle">Add ingredients</div>
+    <div class="modal-subtitle" id="ipModalSubtitle">Pick what you need to buy</div>
+    <div id="ipModalList"></div>
+    <button class="ip-confirm-btn" onclick="confirmIngredientPicker()">Add Selected to Grocery List</button>
+    <button class="modal-close" onclick="closeIngredientPicker()">Cancel</button>
   </div>
 </div>
 
@@ -1434,6 +1472,7 @@
                   <span class="meal-number">${type.label} ${mi + 1}</span>
                   <div class="meal-header-left">
                     ${(meal.name.trim() && meal.ingredients.some(i => i.trim())) ? `<button class="save-meal-btn" onclick="event.stopPropagation();saveMealFrom('${type.key}',${mi})" title="Save to favorites">💾 Save</button>` : ''}
+                    ${(meal.name.trim() && meal.ingredients.some(i => i.trim())) ? `<button class="save-meal-btn" onclick="event.stopPropagation();openIngredientPicker('${type.key}',${mi})" title="Add ingredients to grocery list">🛒</button>` : ''}
                     ${meals.length > 1 ? `<button class="remove-meal" onclick="event.stopPropagation();removeMeal('${type.key}',${mi})">✕</button>` : ''}
                   </div>
                 </div>
@@ -1767,15 +1806,6 @@
       if (!entry.sources.includes(source)) entry.sources.push(source);
     }
 
-    dayKeys.forEach(d => {
-      mealTypes.forEach(type => {
-        mealsByDay[d][type.key].forEach(meal => {
-          meal.ingredients.forEach(ing => {
-            addItem(ing, `${dayNames[d].slice(0,3)} · ${meal.name.trim() || `${type.label} (unnamed)`}`);
-          });
-        });
-      });
-    });
     extraGroceries.forEach(g => addItem(g, 'Added manually'));
 
     return Array.from(merged.values()).map(entry => ({
@@ -1826,6 +1856,64 @@
     input.value = '';
     renderGroceryList();
     scheduleSave();
+  }
+
+  // Adds ingredients to the grocery list, skipping any already on it (case-insensitive)
+  function addIngredientsToGrocery(ingredients) {
+    let added = 0;
+    ingredients.forEach(raw => {
+      const t = raw.trim();
+      if (!t) return;
+      if (extraGroceries.some(g => g.toLowerCase() === t.toLowerCase())) return;
+      extraGroceries.push(t);
+      added++;
+    });
+    if (added) { renderGroceryList(); scheduleSave(); }
+    return added;
+  }
+
+  // --- INGREDIENT PICKER (meal card -> grocery list) ---
+  let ipTargetCatKey = null, ipTargetMi = null;
+
+  function openIngredientPicker(catKey, mi) {
+    const meal = mealsByDay[selectedDay][catKey][mi];
+    if (!meal) return;
+    ipTargetCatKey = catKey;
+    ipTargetMi = mi;
+    document.getElementById('ipModalTitle').textContent = meal.name.trim() || 'Ingredients';
+    document.getElementById('ipModalSubtitle').textContent = 'Pick what you need to buy';
+
+    const ingredients = meal.ingredients.map(i => i.trim()).filter(Boolean);
+    const list = document.getElementById('ipModalList');
+    if (!ingredients.length) {
+      list.innerHTML = `<div class="modal-empty">This meal has no ingredients yet.</div>`;
+    } else {
+      list.innerHTML = ingredients.map((ing, i) => {
+        const already = extraGroceries.some(g => g.toLowerCase() === ing.toLowerCase());
+        return `
+          <label class="ip-item ${already ? 'disabled' : ''}">
+            <input type="checkbox" id="ip-chk-${i}" value="${esc(ing)}" ${already ? 'checked disabled' : 'checked'} />
+            <span class="ip-item-text">${esc(ing)}</span>
+            ${already ? `<span class="ip-item-tag">already on list</span>` : ''}
+          </label>`;
+      }).join('');
+    }
+
+    document.getElementById('ingredientPickerModal').classList.add('open');
+  }
+
+  function closeIngredientPicker() {
+    document.getElementById('ingredientPickerModal').classList.remove('open');
+    ipTargetCatKey = null;
+    ipTargetMi = null;
+  }
+
+  function confirmIngredientPicker() {
+    const checkboxes = document.querySelectorAll('#ipModalList input[type="checkbox"]:checked:not(:disabled)');
+    const chosen = Array.from(checkboxes).map(cb => cb.value);
+    const added = addIngredientsToGrocery(chosen);
+    closeIngredientPicker();
+    if (added) showToast(`✓ ${added} ingredient${added !== 1 ? 's' : ''} added to grocery list`);
   }
 
   // --- HOUSE ---
