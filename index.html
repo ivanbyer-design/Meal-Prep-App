@@ -1517,16 +1517,26 @@
   }
 
   function addIngredient(catKey, mi) {
+    // Defensive: sync any in-progress typed values from the DOM before rebuilding rows
+    const idx = mealTypes.findIndex(t => t.key === catKey);
+    const beforeCards = document.querySelectorAll('.meal-category')[idx].querySelectorAll('.meal-card');
+    beforeCards[mi].querySelectorAll('.ingredient-row input').forEach((inp, ii) => {
+      mealsByDay[selectedDay][catKey][mi].ingredients[ii] = inp.value;
+    });
     mealsByDay[selectedDay][catKey][mi].ingredients.push('');
     renderMeals();
     const cats = document.querySelectorAll('.meal-category');
-    const idx = mealTypes.findIndex(t => t.key === catKey);
     const cards = cats[idx].querySelectorAll('.meal-card');
     const inputs = cards[mi].querySelectorAll('.ingredient-row input');
     if (inputs.length) inputs[inputs.length - 1].focus();
   }
 
   function removeIngredient(catKey, mi, ii) {
+    const idx = mealTypes.findIndex(t => t.key === catKey);
+    const cards = document.querySelectorAll('.meal-category')[idx].querySelectorAll('.meal-card');
+    cards[mi].querySelectorAll('.ingredient-row input').forEach((inp, i) => {
+      mealsByDay[selectedDay][catKey][mi].ingredients[i] = inp.value;
+    });
     mealsByDay[selectedDay][catKey][mi].ingredients.splice(ii, 1);
     renderMeals();
     scheduleSave();
@@ -1620,6 +1630,10 @@
   }
 
   function addEditSavedIngredient() {
+    // Defensive: sync any in-progress typed values from the DOM before rebuilding rows
+    document.querySelectorAll('#editSavedIngredients .ingredient-row input').forEach((inp, ii) => {
+      savedMeals[editSavedIdx].ingredients[ii] = inp.value;
+    });
     savedMeals[editSavedIdx].ingredients.push('');
     renderEditSavedIngredients();
     scheduleSave();
@@ -1628,6 +1642,9 @@
   }
 
   function removeEditSavedIngredient(ii) {
+    document.querySelectorAll('#editSavedIngredients .ingredient-row input').forEach((inp, i) => {
+      savedMeals[editSavedIdx].ingredients[i] = inp.value;
+    });
     savedMeals[editSavedIdx].ingredients.splice(ii, 1);
     if (!savedMeals[editSavedIdx].ingredients.length) savedMeals[editSavedIdx].ingredients = [''];
     renderEditSavedIngredients();
