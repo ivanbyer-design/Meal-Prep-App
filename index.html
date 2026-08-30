@@ -1083,7 +1083,8 @@
     <div class="ingredients-label">Ingredients</div>
     <div id="editSavedIngredients"></div>
     <button class="add-btn" onclick="addEditSavedIngredient()">+ ingredient</button>
-    <button class="modal-close" onclick="closeEditSavedModal()" style="margin-top:16px;">Done</button>
+    <button class="ip-confirm-btn" onclick="saveEditedMealNow()" style="margin-top:16px;">💾 Save</button>
+    <button class="modal-close" onclick="closeEditSavedModal()">Done</button>
   </div>
 </div>
 
@@ -1594,6 +1595,19 @@
   function updateEditSavedName(val) {
     savedMeals[editSavedIdx].name = val;
     scheduleSave();
+  }
+
+  function saveEditedMealNow() {
+    // Sync any in-progress typed values from the DOM, then save immediately (no debounce)
+    const nameInput = document.getElementById('editSavedNameInput');
+    if (nameInput) savedMeals[editSavedIdx].name = nameInput.value;
+    document.querySelectorAll('#editSavedIngredients .ingredient-row input').forEach((inp, ii) => {
+      savedMeals[editSavedIdx].ingredients[ii] = inp.value;
+    });
+    clearTimeout(_saveTimeout);
+    saveToLocal();
+    saveToCloud();
+    showToast('✓ Meal saved');
   }
 
   function closeEditSavedModal() {
