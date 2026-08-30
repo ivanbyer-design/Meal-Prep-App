@@ -780,6 +780,39 @@
     white-space: nowrap;
   }
 
+  .grocery-section-hdr {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1.5px solid var(--border);
+  }
+
+  .grocery-section-name {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1rem;
+    color: var(--text);
+  }
+
+  .grocery-section-count {
+    font-size: 0.75rem; font-weight: 600;
+    color: var(--text-soft);
+    background: var(--bg);
+    padding: 2px 10px;
+    border-radius: 12px;
+  }
+
+  .grocery-item-store-select {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.72rem;
+    color: var(--text-soft);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 6px;
+    max-width: 110px;
+    flex-shrink: 0;
+  }
+
   .item-remove {
     background: none; border: none;
     color: var(--text-soft); cursor: pointer;
@@ -1043,6 +1076,7 @@
   <div id="groceryList"></div>
   <div class="add-inline">
     <input type="text" id="addGroceryInput" placeholder="Add extra item..." onkeydown="if(event.key==='Enter')addGroceryItem()">
+    <select id="addGroceryStoreSelect"></select>
     <button onclick="addGroceryItem()">Add</button>
   </div>
 </div>
@@ -1187,8 +1221,9 @@
   initDefaults();
 
   let savedMeals = []; // { name, ingredients: [], category (meal type key) }
-  let extraGroceries = [];
+  let extraGroceries = []; // { text, store }
   let groceryChecked = {};
+  let groceryStores = []; // user-defined store names, e.g. ['Costco','Target']
 
   let defaultHouseItems = {
     'Kitchen & Cleaning': ['Dish soap', 'Sponges', 'Paper towels', 'Trash bags', 'All-purpose cleaner', 'Aluminum foil', 'Zip-lock bags'],
@@ -1214,6 +1249,7 @@
       savedMeals,
       extraGroceries,
       groceryChecked,
+      groceryStores,
       houseItems,
       houseChecked,
       defaultHouseItems,
@@ -1240,7 +1276,9 @@
       if (data.openCategories) openCategories = data.openCategories;
       if (data.openSavedCategories) openSavedCategories = data.openSavedCategories;
       if (data.savedMeals) savedMeals = data.savedMeals;
-      if (data.extraGroceries) extraGroceries = data.extraGroceries;
+      // Migrate old plain-string grocery items to { text, store } objects
+      if (data.extraGroceries) extraGroceries = data.extraGroceries.map(g => typeof g === 'string' ? { text: g, store: 'General' } : g);
+      if (data.groceryStores) groceryStores = data.groceryStores;
       if (data.groceryChecked) groceryChecked = data.groceryChecked;
       if (data.houseItems) houseItems = data.houseItems;
       if (data.houseChecked) houseChecked = data.houseChecked;
@@ -1876,30 +1914,50 @@
 
   // --- GROCERY ---
   function getGroceryItems() {
-    const merged = new Map(); // normalized ingredient text -> { text, sources: [] }
+    const merged = new Map(); // "text|store" -> { text, store }
 
-    function addItem(rawText, source) {
+    function addItem(rawText, store) {
       const t = rawText.trim();
       if (!t) return;
-      const key = t.toLowerCase();
-      if (!merged.has(key)) merged.set(key, { text: t, sources: [] });
-      const entry = merged.get(key);
-      if (!entry.sources.includes(source)) entry.sources.push(source);
+      const st = store || 'General';
+      const key = t.toLowerCase() + '|' + st.toLowerCase();
+      if (!merged.has(key)) merged.set(key, { text: t, store: st });
     }
 
-    extraGroceries.forEach(g => addItem(g, 'Added manually'));
+    extraGroceries.forEach(g => addItem(g.text, g.store));
 
-    return Array.from(merged.values()).map(entry => ({
-      text: entry.text,
-      source: entry.sources.length <= 2
-        ? entry.sources.join(', ')
-        : `${entry.sources[0]} +${entry.sources.length - 1} more`
-    }));
+    return Array.from(merged.values());
+  }
+
+  function groceryItemKey(item) { return `g_${item.text.toLowerCase()}|${item.store.toLowerCase()}`; }
+
+  function buildStoreOptionsHtml(selected) {
+    const stores = [...new Set([...groceryStores, 'General'])];
+    return stores.map(st => `<option value="${esc(st)}" ${st === selected ? 'selected' : ''}>${esc(st)}</option>`).join('')
+      + `<option value="__new__">+ Add new store…</option>`;
+  }
+
+  function renderGroceryStoreSelect() {
+    const sel = document.getElementById('addGroceryStoreSelect');
+    if (!sel) return;
+    const prev = sel.value && sel.value !== '__new__' ? sel.value : 'General';
+    sel.innerHTML = buildStoreOptionsHtml(prev);
+  }
+
+  function addGroceryStore(name) {
+    const n = name.trim();
+    if (!n) return null;
+    if (!groceryStores.some(s => s.toLowerCase() === n.toLowerCase())) {
+      groceryStores.push(n);
+      scheduleSave();
+    }
+    return n;
   }
 
   function renderGroceryList() {
     const items = getGroceryItems();
     const container = document.getElementById('groceryList');
+    renderGroceryStoreSelect();
 
     if (!items.length) {
       container.innerHTML = `<div class="empty-state"><div class="icon">🛒</div><p>Add meals and ingredients first,<br>then they'll appear here!</p></div>`;
@@ -1908,20 +1966,35 @@
       return;
     }
 
-    container.innerHTML = `<div class="grocery-section">${items.map((item) => {
-      const key = `g_${item.text.toLowerCase()}`;
-      const checked = groceryChecked[key] || false;
+    const storeOrder = [...groceryStores, 'General'];
+    container.innerHTML = storeOrder.map(store => {
+      const storeItems = items.filter(item => item.store === store);
+      if (!storeItems.length) return '';
+      const storeChecked = storeItems.filter(item => groceryChecked[groceryItemKey(item)]).length;
       return `
-        <div class="check-item ${checked ? 'checked' : ''}">
-          <div class="checkbox" onclick="toggleGrocery('${esc(key)}')">
-            <svg viewBox="0 0 16 16"><polyline points="3,8 7,12 13,4"/></svg>
+        <div class="grocery-section">
+          <div class="grocery-section-hdr">
+            <span class="grocery-section-name">🏪 ${esc(store)}</span>
+            <span class="grocery-section-count">${storeChecked} / ${storeItems.length}</span>
           </div>
-          <span class="item-text">${esc(item.text)}</span>
-          <span class="item-source">${esc(item.source)}</span>
+          ${storeItems.map((item) => {
+            const key = groceryItemKey(item);
+            const checked = groceryChecked[key] || false;
+            return `
+              <div class="check-item ${checked ? 'checked' : ''}">
+                <div class="checkbox" onclick="toggleGrocery('${esc(key)}')">
+                  <svg viewBox="0 0 16 16"><polyline points="3,8 7,12 13,4"/></svg>
+                </div>
+                <span class="item-text">${esc(item.text)}</span>
+                <select class="grocery-item-store-select" onchange="reassignGroceryStore('${esc(item.text)}','${esc(item.store)}',this.value,this)">
+                  ${buildStoreOptionsHtml(item.store)}
+                </select>
+              </div>`;
+          }).join('')}
         </div>`;
-    }).join('')}</div>`;
+    }).join('');
 
-    const checked = items.filter(item => groceryChecked[`g_${item.text.toLowerCase()}`]).length;
+    const checked = items.filter(item => groceryChecked[groceryItemKey(item)]).length;
     document.getElementById('groceryProgress').textContent = `${checked} / ${items.length}`;
     document.getElementById('groceryFill').style.width = items.length ? `${(checked / items.length) * 100}%` : '0%';
     updateBadges();
@@ -1929,11 +2002,35 @@
 
   function toggleGrocery(key) { groceryChecked[key] = !groceryChecked[key]; renderGroceryList(); scheduleSave(); }
 
+  function reassignGroceryStore(text, oldStore, newValue, selectEl) {
+    if (newValue === '__new__') {
+      const name = prompt('New store name:');
+      const n = name ? addGroceryStore(name) : null;
+      if (!n) { renderGroceryList(); return; }
+      newValue = n;
+    }
+    extraGroceries.forEach(g => {
+      if (g.text.toLowerCase() === text.toLowerCase() && (g.store || 'General').toLowerCase() === (oldStore || 'General').toLowerCase()) {
+        g.store = newValue;
+      }
+    });
+    renderGroceryList();
+    scheduleSave();
+  }
+
   function addGroceryItem() {
     const input = document.getElementById('addGroceryInput');
+    const storeSel = document.getElementById('addGroceryStoreSelect');
     const val = input.value.trim();
     if (!val) return;
-    extraGroceries.push(val);
+    let store = (storeSel && storeSel.value) || 'General';
+    if (store === '__new__') {
+      const name = prompt('New store name:');
+      const n = name ? addGroceryStore(name) : null;
+      if (!n) return;
+      store = n;
+    }
+    extraGroceries.push({ text: val, store });
     input.value = '';
     renderGroceryList();
     scheduleSave();
@@ -1945,8 +2042,8 @@
     ingredients.forEach(raw => {
       const t = raw.trim();
       if (!t) return;
-      if (extraGroceries.some(g => g.toLowerCase() === t.toLowerCase())) return;
-      extraGroceries.push(t);
+      if (extraGroceries.some(g => g.text.toLowerCase() === t.toLowerCase())) return;
+      extraGroceries.push({ text: t, store: 'General' });
       added++;
     });
     if (added) { renderGroceryList(); scheduleSave(); }
@@ -1970,7 +2067,7 @@
       list.innerHTML = `<div class="modal-empty">This meal has no ingredients yet.</div>`;
     } else {
       list.innerHTML = ingredients.map((ing, i) => {
-        const already = extraGroceries.some(g => g.toLowerCase() === ing.toLowerCase());
+        const already = extraGroceries.some(g => g.text.toLowerCase() === ing.toLowerCase());
         return `
           <label class="ip-item ${already ? 'disabled' : ''}">
             <input type="checkbox" id="ip-chk-${i}" value="${esc(ing)}" ${already ? 'checked disabled' : 'checked'} />
@@ -2046,7 +2143,7 @@
                   <svg viewBox="0 0 16 16"><polyline points="3,8 7,12 13,4"/></svg>
                 </div>
                 <span class="item-text">${esc(item)}</span>
-                <button class="item-to-grocery ${extraGroceries.some(g => g.toLowerCase() === item.toLowerCase()) ? 'added' : ''}" onclick="addHouseToGrocery('${esc(item)}')" title="${extraGroceries.some(g => g.toLowerCase() === item.toLowerCase()) ? 'Already on grocery list' : 'Add to grocery list'}">🛒</button>
+                <button class="item-to-grocery ${extraGroceries.some(g => g.text.toLowerCase() === item.toLowerCase()) ? 'added' : ''}" onclick="addHouseToGrocery('${esc(item)}')" title="${extraGroceries.some(g => g.text.toLowerCase() === item.toLowerCase()) ? 'Already on grocery list' : 'Add to grocery list'}">🛒</button>
                 <button class="item-remove" onclick="removeHouseItem('${esc(cat)}',${i})">✕</button>
               </div>`;
           }).join('') : `<div style="padding:8px 0;color:var(--text-soft);font-size:0.85rem;">No items yet</div>`}
@@ -2063,11 +2160,11 @@
   function toggleHouse(key) { houseChecked[key] = !houseChecked[key]; renderHouseList(); scheduleSave(); }
 
   function addHouseToGrocery(itemName) {
-    if (extraGroceries.some(g => g.toLowerCase() === itemName.toLowerCase())) {
+    if (extraGroceries.some(g => g.text.toLowerCase() === itemName.toLowerCase())) {
       showToast(`"${itemName}" is already on the grocery list`);
       return;
     }
-    extraGroceries.push(itemName);
+    extraGroceries.push({ text: itemName, store: 'General' });
     renderHouseList();
     scheduleSave();
     showToast(`"${itemName}" added to grocery list`);
