@@ -372,6 +372,29 @@
 
   .category-body.open { display: block; animation: fadeIn 0.2s ease; }
 
+  .saved-subsection {
+    margin-bottom: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1.5px dashed var(--border);
+  }
+
+  .saved-subsection-hdr {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.85rem; font-weight: 700;
+    color: var(--text);
+    margin-bottom: 10px;
+  }
+
+  .saved-subsection-count {
+    font-size: 0.72rem; font-weight: 600;
+    color: var(--text-soft);
+    background: var(--bg);
+    padding: 1px 8px;
+    border-radius: 10px;
+  }
+
+  .saved-subsection-hdr .category-add-btn { margin-left: auto; }
+
   .meal-card {
     background: var(--bg);
     border-radius: var(--radius-sm);
@@ -1633,6 +1656,17 @@
     openEditSavedModal(idx);
   }
 
+  function addFruitItem() {
+    const name = prompt('Add a fruit:');
+    if (!name || !name.trim()) return;
+    const n = name.trim();
+    savedMeals.push({ name: n, ingredients: [n], category: 'breakfast', subcategory: 'fruits' });
+    openSavedCategories['breakfast'] = true;
+    renderSavedMeals();
+    scheduleSave();
+    showToast(`"${n}" added to Fruits`);
+  }
+
   function renderEditSavedIngredients() {
     const s = savedMeals[editSavedIdx];
     document.getElementById('editSavedIngredients').innerHTML = s.ingredients.map((ing, ii) => `
@@ -1668,27 +1702,7 @@
   function renderSavedMeals() {
     const container = document.getElementById('savedMealsList');
 
-    container.innerHTML = mealTypes.map(type => {
-      const items = savedMeals
-        .map((s, i) => ({ s, i }))
-        .filter(({ s }) => s.category === type.key);
-      const isOpen = openSavedCategories[type.key];
-
-      return `
-        <div class="meal-category">
-          <div class="category-header ${isOpen ? 'open' : ''}" onclick="toggleSavedCategory('${type.key}')">
-            <div class="category-header-left">
-              <span class="category-icon">${type.icon}</span>
-              <span class="category-name">${type.label}</span>
-              <span class="category-count">${items.length} saved</span>
-            </div>
-            <div class="category-header-right">
-              <button class="category-add-btn" onclick="event.stopPropagation();addSavedMealToCategory('${type.key}')" title="Add a ${type.label.toLowerCase()} meal">+</button>
-              <span class="category-chevron">▼</span>
-            </div>
-          </div>
-          <div class="category-body ${isOpen ? 'open' : ''}">
-            ${items.length ? items.map(({ s, i }) => `
+    const renderCard = ({ s, i }) => `
               <div class="saved-meal-card" onclick="openEditSavedModal(${i})">
                 <div class="saved-meal-header">
                   <div class="saved-meal-name">${esc(s.name)}</div>
@@ -1699,7 +1713,41 @@
                 <div class="saved-ingredients">
                   ${s.ingredients.map(ing => `<span class="saved-ing-tag">${esc(ing)}</span>`).join('')}
                 </div>
-              </div>`).join('') : `<div style="padding:8px 0;color:var(--text-soft);font-size:0.85rem;">No saved ${type.label.toLowerCase()} yet</div>`}
+              </div>`;
+
+    container.innerHTML = mealTypes.map(type => {
+      const allItems = savedMeals
+        .map((s, i) => ({ s, i }))
+        .filter(({ s }) => s.category === type.key);
+      const isOpen = openSavedCategories[type.key];
+      const isBreakfast = type.key === 'breakfast';
+      const fruitItems = isBreakfast ? allItems.filter(({ s }) => s.subcategory === 'fruits') : [];
+      const items = isBreakfast ? allItems.filter(({ s }) => s.subcategory !== 'fruits') : allItems;
+
+      return `
+        <div class="meal-category">
+          <div class="category-header ${isOpen ? 'open' : ''}" onclick="toggleSavedCategory('${type.key}')">
+            <div class="category-header-left">
+              <span class="category-icon">${type.icon}</span>
+              <span class="category-name">${type.label}</span>
+              <span class="category-count">${allItems.length} saved</span>
+            </div>
+            <div class="category-header-right">
+              <button class="category-add-btn" onclick="event.stopPropagation();addSavedMealToCategory('${type.key}')" title="Add a ${type.label.toLowerCase()} meal">+</button>
+              <span class="category-chevron">▼</span>
+            </div>
+          </div>
+          <div class="category-body ${isOpen ? 'open' : ''}">
+            ${isBreakfast ? `
+              <div class="saved-subsection">
+                <div class="saved-subsection-hdr">
+                  <span>🍎 Fruits</span>
+                  <span class="saved-subsection-count">${fruitItems.length}</span>
+                  <button class="category-add-btn" onclick="event.stopPropagation();addFruitItem()" title="Add a fruit">+</button>
+                </div>
+                ${fruitItems.length ? fruitItems.map(renderCard).join('') : `<div style="padding:0 0 4px;color:var(--text-soft);font-size:0.82rem;">No fruits saved yet</div>`}
+              </div>` : ''}
+            ${items.length ? items.map(renderCard).join('') : (allItems.length ? '' : `<div style="padding:8px 0;color:var(--text-soft);font-size:0.85rem;">No saved ${type.label.toLowerCase()} yet</div>`)}
           </div>
         </div>`;
     }).join('');
