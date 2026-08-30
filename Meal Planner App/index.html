@@ -1785,12 +1785,14 @@
     if (list.length > 1 && list[0].name === '' && list[0].ingredients.every(i => !i.trim())) {
       list.splice(0, 1);
     }
+    const newMealIndex = list.length - 1;
     openCategories[catKey] = true;
     closeModal();
     renderWeekGrid();
     renderMeals();
     scheduleSave();
     showToast(`"${saved.name}" loaded into ${mealTypes.find(t=>t.key===catKey)?.label} for ${dayNames[selectedDay]}`);
+    openIngredientPicker(catKey, newMealIndex);
   }
 
   // --- GROCERY ---
